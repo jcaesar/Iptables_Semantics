@@ -1267,26 +1267,49 @@ definition "oiface_exact_match \<equiv> list_all (is_iface_name \<circ> iface_se
 find_theorems route2match
 lemma eqFalseI: "\<not>A \<Longrightarrow> A = False" by simp
 lemma s1_update_ignorant: "
-	valid_prefixes rt \<Longrightarrow> 
-	generalized_sfw (fourtytwo_s1 rt) (p\<lparr>p_oiface := output_iface (routing_table_semantics rt (p_dst p))\<rparr>) = None \<Longrightarrow> generalized_sfw (fourtytwo_s1 rt) p = None"
-proof(induction rt) (* would be easier by rev_induct, but I lack a little lemma, so this will do. *)
-	case (Cons a as)
-	have vpfxa: "valid_prefix (routing_match a)" using valid_prefixes_split Cons.prems(1) by blast
-	have nps: "\<not>prefix_match_semantics (routing_match a) (p_dst p)"
-		using Cons.prems(2) by(simp add: fourtytwo_s1_split generalized_sfw_simps route2match_correct[OF vpfxa] split: if_splits)
-	have nsm: "\<not> simple_matches (route2match a) p"
-		using nps
-		apply -
-		apply(erule contrapos_nn)
-		apply(erule route2match_correct_noupd[rotated])
-		apply(fact vpfxa)
-	done
-	have "routing_table_semantics (a # as) (p_dst p) = routing_table_semantics as (p_dst p)" by(simp add: nps) (* unusued *)  
-	have ihm: "valid_prefixes as" "generalized_sfw (fourtytwo_s1 as) (p\<lparr>p_oiface := output_iface (routing_table_semantics as (p_dst p))\<rparr>) = None"
-		using Cons.prems by(simp add: valid_prefixes_split, simp add: generalized_sfw_simps fourtytwo_s1_split nps split: if_splits)
-	note Cons.IH[OF this]
-	with nsm show ?case by(simp add: generalized_sfw_simps fourtytwo_s1_split) 
-qed(simp add: generalized_sfw_def fourtytwo_s1_def;fail)
+	valid_prefixes rt \<Longrightarrow>
+	fourtytwo_s1 rt = l1 @ l2 \<Longrightarrow>
+	generalized_sfw l1 (p\<lparr>p_oiface := output_iface (routing_table_semantics rt (p_dst p))\<rparr>) = None \<Longrightarrow> generalized_sfw l1 p = None"
+proof(induction rt arbitrary: l1)
+  case (Cons rta rts)
+  thus ?case
+  proof(cases "l1 = []")
+    case True thus ?thesis by(simp add: generalized_sfw_simps)
+  next
+    case False
+    then obtain l1a l1s where l1[simp]: "l1 = l1a # l1s" by(cases l1; simp)
+    from Cons.prems have mprem1: "valid_prefixes rts" "valid_prefix (routing_match rta)" using valid_prefixes_split by blast+
+    from Cons.prems have mprem2: "fourtytwo_s1 rts = l1s @ l2" unfolding fourtytwo_s1_def by simp
+    have npm: "\<not>prefix_match_semantics (routing_match rta) (p_dst p)"
+    proof(rule ccontr, unfold not_not, goal_cases)
+      case 1 then have rts: "routing_table_semantics (rta # rts) (p_dst p) = routing_action rta" by simp
+      note Cons.prems(3)[unfolded rts]
+      with Cons.prems(2) show False
+        apply(clarsimp simp add: fourtytwo_s1_def) 
+        using 1 apply -
+        apply(subst(asm) route2match_correct)
+        apply(rule mprem1)
+        apply(simp add: generalized_sfw_simps)
+      done
+    qed
+    from Cons.prems(3) have mprem3: "generalized_sfw l1s (p\<lparr>p_oiface := output_iface (routing_table_semantics rts (p_dst p))\<rparr>) = None"
+      by(simp add: generalized_sfw_simps npm split: prod.splits if_splits)
+    have dfla: "dst (fst l1a) = ((pfxm_prefix (routing_match rta)), pfxm_length (routing_match rta))" 
+      using Cons.prems(2) by(clarsimp simp add: fourtytwo_s1_def route2match_def)
+    have nsm: "\<not>simple_matches (fst l1a) p"
+      using npm
+      apply -
+      apply(subst(asm) route2match_correct)
+      apply(rule mprem1)
+      apply(clarsimp simp add: route2match_def simple_matches.simps ipv4range_set_from_prefix_UNIV match_iface_refl match_ifaceAny)
+      apply(cases "(dst (fst l1a))")
+      apply(simp add: dfla)
+    done
+    note Cons.IH[OF mprem1(1) mprem2 mprem3]
+    thus "generalized_sfw l1 p = None" using nsm by(clarsimp simp add: generalized_sfw_simps)
+  qed
+qed(simp add: generalized_sfw_simps fourtytwo_s1_def)
+
 
 (* TODO: move *)
 definition "rtbl_ifs = set \<circ> map (output_iface \<circ> routing_action)"
@@ -1824,11 +1847,39 @@ lemma OF_unsafe_safe_match_linear_eq: "
 unfolding fun_eq_iff
 by(induction oft) (clarsimp simp add: list_all_iff of_match_fields_safe_eq)+
 
+lemma map_split_append:
+  "map f l = (a @ b) \<Longrightarrow> (\<exists>x y. l = x @ y \<and> map f x = a \<and> map f y = b)"
+sorry
+
+(* TODO: move *)
+lemma generalized_fw_join_append: "generalized_fw_join (a @ b) f2 = generalized_fw_join a f2 @ generalized_fw_join b f2"
+unfolding generalized_fw_join_def by simp
+
+lemma fourtytwo_nullifyoif_append: "fourtytwo_nullifyoif (a @ b) = fourtytwo_nullifyoif a @ fourtytwo_nullifyoif b"
+unfolding fourtytwo_nullifyoif_def by simp
+
+lemma generalized_sfw_nullifyoif_Cons: "generalized_sfw (fourtytwo_nullifyoif (a # rrnm)) p = (if simple_matches ((fst a)\<lparr>oiface := ifaceAny\<rparr>) p then Some (apfst (oiface_update (const ifaceAny)) a) else
+  generalized_sfw (fourtytwo_nullifyoif rrnm) p)"
+by(clarsimp simp add: fourtytwo_nullifyoif_def generalized_sfw_simps const_def apfst_def map_prod_def split: prod.splits)
+
+lemma hlp2: "generalized_sfw (fourtytwo_nullifyoif rrnm) p = None \<Longrightarrow> generalized_sfw (fourtytwo_nullifyoif (generalized_fw_join rrnm j)) p = None"
+apply(induction rrnm)
+apply(simp add: fourtytwo_nullifyoif_def generalized_sfw_def) 
+apply(subst(asm) generalized_sfw_nullifyoif_Cons)
+apply(simp split: if_splits)
+apply(subst prepend_singleton[symmetric])
+apply(unfold generalized_fw_join_append fourtytwo_nullifyoif_append generalized_sfw_append)
+apply(clarsimp split: option.splits)
+sorry
+
+
+
 lemma "has_default_policy fw \<Longrightarrow> valid_prefixes rt \<Longrightarrow> has_default_route rt \<Longrightarrow> output_iface (routing_table_semantics rt (p_dst p)) \<in> set ifs \<Longrightarrow> p_iiface p \<in> set ifs \<Longrightarrow> is_iface_list ifs
   \<Longrightarrow> simple_linux_router_nomac rt fw p = Some p' \<Longrightarrow>
   \<exists>m. generalized_sfw (fourtytwo_fbs rt fw ifs) p = Some (m, p_oiface p', simple_action.Accept)"
 proof(goal_cases)
   case 1
+  have pp: "p' = p\<lparr>p_oiface := output_iface (routing_table_semantics rt (p_dst p))\<rparr>" using 1(7) by(simp add: simple_linux_router_nomac_def Let_def split: Option.bind_splits)
   have subgl: "\<And>x2. \<lbrakk>p\<lparr>p_oiface := output_iface (routing_table_semantics rt (p_dst p))\<rparr> = p'; has_default_policy fw; output_iface (routing_table_semantics rt (p_dst p)) \<noteq> p_iiface p; simple_fw fw p' = Decision FinalAllow; x2 = FinalAllow\<rbrakk>
           \<Longrightarrow> \<exists>m. generalized_sfw (fourtytwo_fbs rt fw ifs) p = Some (m, p_oiface p', simple_action.Accept)" 
   proof(goal_cases)
@@ -1841,12 +1892,27 @@ proof(goal_cases)
         using \<open>output_iface (routing_table_semantics rt (p_dst p)) \<in> set ifs\<close> \<open>p_iiface p \<in> set ifs\<close>
           \<open>output_iface (routing_table_semantics rt (p_dst p)) \<noteq> p_iiface p\<close> by simp
       note oif_ne_iif_correct[THEN iffD2, OF \<open>is_iface_list ifs\<close>, of p' simple_action.Accept, OF this] then guess r .. note oiii = this
+      from oiii fmfa have "\<exists>m. generalized_sfw (generalized_fw_join (oif_ne_iif ifs) (map simple_rule_dtor fw)) p' = Some (m, simple_action.Accept, simple_action.Accept)"
+        unfolding fa by (intro exI) (rule generalized_fw_joinI)
       note rmra fmfa fa oiii
-      from rmra[THEN conjunct1, THEN generalized_fw_split] obtain rrnm rrr where "fourtytwo_s1 rt = rrnm @ (rm, ra) # rrr \<and> generalized_sfw rrnm (p'\<lparr>p_oiface := ra\<rparr>) = None" by blast
-      then obtain rtnm where "fourtytwo_s1 rtnm = rrnm" unfolding fourtytwo_s1_def sorry
-      with s1_update_ignorant[OF \<open>valid_prefixes rt\<close>] rmra have "generalized_sfw (fourtytwo_s1 rt) p = None" sorry
-      show ?case
+      from rmra[THEN conjunct1, THEN generalized_fw_split] obtain rrnm rrr where rrr: "fourtytwo_s1 rt = rrnm @ (rm, ra) # rrr" "generalized_sfw rrnm (p'\<lparr>p_oiface := ra\<rparr>) = None" by blast
+      hence "generalized_sfw rrnm (p\<lparr>p_oiface := output_iface (routing_table_semantics rt (p_dst p))\<rparr>) = None" unfolding rmra[THEN conjunct2] pp by fastforce
+      from s1_update_ignorant[OF \<open>valid_prefixes rt\<close> rrr(1) this]
+      have "generalized_sfw rrnm p = None" .
+      hence jNone: "\<And>j. generalized_sfw (fourtytwo_nullifyoif (generalized_fw_join rrnm j)) p = None"
+        apply -
+        apply(rule hlp2)
+      sorry
+      show ?case unfolding fourtytwo_fbs_def Let_def rrr generalized_fw_join_append fourtytwo_nullifyoif_append
+        unfolding generalized_sfw_append
         unfolding fourtytwo_fbs_def Let_def
+        apply(subgoal_tac "generalized_sfw
+              (fourtytwo_nullifyoif (generalized_fw_join rrnm (generalized_sfw_conjunct_o (generalized_fw_join (oif_ne_iif ifs) (map simple_rule_dtor fw))))) p = None")
+        prefer 2
+        apply(rule jNone)
+        apply(clarsimp)
+        apply(subst prepend_singleton[symmetric])
+        apply(unfold generalized_fw_join_append fourtytwo_nullifyoif_append generalized_sfw_append) find_theorems "generalized_fw_join [_] _"
       sorry
   qed
   from 1 show ?thesis
