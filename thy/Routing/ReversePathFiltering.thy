@@ -102,7 +102,7 @@ end
 
 corollary rpf_strict_correct:
 assumes vpfx: "valid_prefixes rtbl"
-shows "rpf_strict rtbl p \<longleftrightarrow> (\<exists>(k,l) \<in> set (routing_ipassmt_wi rtbl). p_iiface p = k \<and> p_src p \<in> wordinterval_to_set l)"
+shows "rpf_strict rtbl p \<longleftrightarrow> (\<exists>(k,l) \<in> set (routing_ipassmt_wi rtbl ifs). p_iiface p = k \<and> p_src p \<in> wordinterval_to_set l)"
 unfolding rpf_strict_def
   apply(intro iffI[rotated])
   apply(clarify)
@@ -388,7 +388,7 @@ primrec rpf_def_lookup where
 "rpf_def_lookup RPF_LooseIgnDef = rpf_loose_ign_default" |
 "rpf_def_lookup RPF_Semifeasible = rpf_semifeasible"
 fun rpf_wi_lookup where
-"rpf_wi_lookup RPF_Strict _ = routing_ipassmt_wi" |
+"rpf_wi_lookup RPF_Strict ifs = (\<lambda>rtbl. routing_ipassmt_wi rtbl ifs)" |
 "rpf_wi_lookup RPF_Feasible _ = rpf_feasible_wi" |
 "rpf_wi_lookup RPF_Loose ifs = rpf_loose_wi ifs" |
 "rpf_wi_lookup RPF_LooseIgnDef ifs = rpf_loose_ign_default_wi ifs" |

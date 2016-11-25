@@ -658,7 +658,7 @@ theorem to_simple_firewall_without_interfaces:
       --"A passed routing table is wellformed"
       and correct_routing: "\<And>rtbl. rtblo = Some rtbl \<Longrightarrow> correct_routing rtbl"
       --"A passed routing table contains no interfaces with wildcard names"
-      and routing_no_wildcards: "\<And>rtbl. rtblo = Some rtbl \<Longrightarrow> ipassmt_sanity_nowildcards (map_of (routing_ipassmt rtbl))"
+      and routing_no_wildcards: "\<And>rtbl. rtblo = Some rtbl \<Longrightarrow> ipassmt_sanity_nowildcards (map_of (routing_ipassmt rtbl (map fst ipassmt)))"
 
   --"the set of new packets, which are accepted is an overapproximations"
   shows "{p::('i,'a) tagged_packet_scheme. (common_matcher, in_doubt_allow),p\<turnstile> \<langle>rs, Undecided\<rangle> \<Rightarrow>\<^sub>\<alpha> Decision FinalAllow \<and> newpkt p} \<subseteq>

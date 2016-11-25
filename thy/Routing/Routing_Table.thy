@@ -403,42 +403,48 @@ let c = \<lambda>s. (wordinterval_Union \<circ> map snd \<circ> filter ((op = s)
 [(p, c p). p \<leftarrow> ps]
 "
 
-definition "routing_ipassmt_wi tbl \<equiv> reduce_range_destination (routing_port_ranges tbl wordinterval_UNIV)"
+definition "routing_ipassmt_wi tbl ifs \<equiv> reduce_range_destination (routing_port_ranges tbl wordinterval_UNIV @ map (\<lambda>ifce. (ifce,Empty_WordInterval)) ifs)"
 
-lemma routing_ipassmt_wi_distinct: "distinct (map fst (routing_ipassmt_wi tbl))"
+lemma routing_ipassmt_wi_distinct: "distinct (map fst (routing_ipassmt_wi tbl ifs))"
   unfolding routing_ipassmt_wi_def reduce_range_destination_def
   by(simp add: comp_def)
 
 private lemma routing_port_ranges_superseted:
 "(a1,b1) \<in> set (routing_port_ranges tbl wordinterval_UNIV) \<Longrightarrow> 
-  \<exists>b2. (a1,b2) \<in> set (routing_ipassmt_wi tbl) \<and> wordinterval_to_set b1 \<subseteq> wordinterval_to_set b2"
+  \<exists>b2. (a1,b2) \<in> set (routing_ipassmt_wi tbl ifs) \<and> wordinterval_to_set b1 \<subseteq> wordinterval_to_set b2"
   unfolding routing_ipassmt_wi_def reduce_range_destination_def
   by(force simp add: Set.image_iff wordinterval_Union)
 
 private lemma routing_ipassmt_wi_subsetted:
-"(a1,b1) \<in> set (routing_ipassmt_wi tbl) \<Longrightarrow> 
+"(a1,b1) \<in> set (routing_ipassmt_wi tbl ifs) \<Longrightarrow> 
  (a1,b2) \<in> set (routing_port_ranges tbl wordinterval_UNIV) \<Longrightarrow>  wordinterval_to_set b2 \<subseteq> wordinterval_to_set b1"
   unfolding routing_ipassmt_wi_def reduce_range_destination_def
   by(fastforce simp add: Set.image_iff wordinterval_Union comp_def)
+
+(* TODO: move *)
+lemma wordinterval_Union_append: "wordinterval_Union (a @ b) = wordinterval_union (wordinterval_Union a) (wordinterval_Union b)"
+
+  sorry
 
 text\<open>This lemma should hold without the @{const valid_prefixes} assumption, but that would break the semantic argument and make the proof a lot harder.\<close>
 lemma routing_ipassmt_wi_disjoint:
 assumes vpfx: "valid_prefixes (tbl::('i::len) prefix_routing)"
   and dif: "a1 \<noteq> a2"
-  and ins:  "(a1, b1) \<in> set (routing_ipassmt_wi tbl)" "(a2, b2) \<in> set (routing_ipassmt_wi tbl)"
+  and ins:  "(a1, b1) \<in> set (routing_ipassmt_wi tbl ifs)" "(a2, b2) \<in> set (routing_ipassmt_wi tbl ifs)"
 shows "wordinterval_to_set b1 \<inter> wordinterval_to_set b2 = {}"
 proof(rule ccontr)
   note iuf = ins[unfolded routing_ipassmt_wi_def reduce_range_destination_def Let_def, simplified, unfolded Set.image_iff comp_def, simplified]
-  assume "(wordinterval_to_set b1 \<inter> wordinterval_to_set b2 \<noteq> {})"
-  hence "wordinterval_to_set b1 \<inter> wordinterval_to_set b2 \<noteq> {}" by simp
+  assume "wordinterval_to_set b1 \<inter> wordinterval_to_set b2 \<noteq> {}"
   text\<open>If the intervals are not disjoint, there exists a witness of that.\<close>
   then obtain x where x[simp]: "x \<in> wordinterval_to_set b1" "x \<in> wordinterval_to_set b2" by blast
   text\<open>This witness has to have come from some entry in the result of @{const routing_port_ranges}, for both of @{term b1} and @{term b2}.\<close>
-  hence "\<exists>b1g. x \<in> wordinterval_to_set b1g \<and> wordinterval_to_set b1g \<subseteq> wordinterval_to_set b1 \<and> (a1, b1g) \<in> set (routing_port_ranges tbl wordinterval_UNIV)"
-    using iuf(1) by(fastforce simp add: wordinterval_Union) (* strangely, this doesn't work with obtain *)
+  from this(1) have "\<exists>b1g. x \<in> wordinterval_to_set b1g \<and> 
+      wordinterval_to_set b1g \<subseteq> wordinterval_to_set b1 \<and> 
+      (a1, b1g) \<in> set (routing_port_ranges tbl wordinterval_UNIV)"
+    using iuf(1) by(fastforce simp add: wordinterval_Union image_iff) (* strangely, this doesn't work with obtain *)
   then obtain b1g where b1g: "x \<in> wordinterval_to_set b1g" "wordinterval_to_set b1g \<subseteq> wordinterval_to_set b1" "(a1, b1g) \<in> set (routing_port_ranges tbl wordinterval_UNIV)" by clarsimp
   from x have "\<exists>b2g. x \<in> wordinterval_to_set b2g \<and> wordinterval_to_set b2g \<subseteq> wordinterval_to_set b2 \<and> (a2, b2g) \<in> set (routing_port_ranges tbl wordinterval_UNIV)"
-    using iuf(2) by(fastforce simp add: wordinterval_Union)
+    using iuf(2) by(fastforce simp add: wordinterval_Union image_iff)
   then obtain b2g where b2g: "x \<in> wordinterval_to_set b2g" "wordinterval_to_set b2g \<subseteq> wordinterval_to_set b2" "(a2, b2g) \<in> set (routing_port_ranges tbl wordinterval_UNIV)" by clarsimp
   text\<open>Soudness tells us that the both @{term a1} and @{term a2} have to be the result of routing @{term x}.\<close>
   note routing_port_ranges_sound[OF b1g(3), unfolded fst_conv snd_conv, OF b1g(1) vpfx] routing_port_ranges_sound[OF b2g(3), unfolded fst_conv snd_conv, OF b2g(1) vpfx]
@@ -448,13 +454,13 @@ qed
 
 lemma routing_ipassmt_wi_sound:
   assumes vpfx: "valid_prefixes tbl"
-  and ins: "(ea,eb) \<in> set (routing_ipassmt_wi tbl)"
+  and ins: "(ea,eb) \<in> set (routing_ipassmt_wi tbl ifs)"
   and x: "k \<in> wordinterval_to_set eb"
   shows "ea = output_iface (routing_table_semantics tbl k)"
 proof -
   note iuf = ins[unfolded routing_ipassmt_wi_def reduce_range_destination_def Let_def, simplified, unfolded Set.image_iff comp_def, simplified]
   from x have "\<exists>b1g. k \<in> wordinterval_to_set b1g \<and> wordinterval_to_set b1g \<subseteq> wordinterval_to_set eb \<and> (ea, b1g) \<in> set (routing_port_ranges tbl wordinterval_UNIV)"
-    using iuf(1) by(fastforce simp add: wordinterval_Union)
+    using iuf(1) by(fastforce simp add: wordinterval_Union image_iff)
   then obtain b1g where b1g: "k \<in> wordinterval_to_set b1g" "wordinterval_to_set b1g \<subseteq> wordinterval_to_set eb" "(ea, b1g) \<in> set (routing_port_ranges tbl wordinterval_UNIV)" by clarsimp
   note routing_port_ranges_sound[OF b1g(3), unfolded fst_conv snd_conv, OF b1g(1) vpfx]
   thus ?thesis .
@@ -464,7 +470,7 @@ theorem routing_ipassmt_wi:
 assumes vpfx: "valid_prefixes tbl"
   shows 
   "output_iface (routing_table_semantics tbl k) = output_port \<longleftrightarrow>
-    (\<exists>ip_range. k \<in> wordinterval_to_set ip_range \<and> (output_port, ip_range) \<in> set (routing_ipassmt_wi tbl))"
+    (\<exists>ip_range. k \<in> wordinterval_to_set ip_range \<and> (output_port, ip_range) \<in> set (routing_ipassmt_wi tbl ifs))"
 proof (intro iffI, goal_cases)
   case 2 with vpfx routing_ipassmt_wi_sound show ?case by blast
 next
@@ -480,7 +486,7 @@ qed
 (* this was not given for the old reduced_range_destination *)
 lemma routing_ipassmt_wi_has_all_interfaces:
   assumes in_tbl: "r \<in> set tbl"
-  shows "\<exists>s. (routing_oiface r,s) \<in> set (routing_ipassmt_wi tbl)"
+  shows "\<exists>s. (routing_oiface r,s) \<in> set (routing_ipassmt_wi tbl ifs)"
 proof -
   from in_tbl have "\<exists>s. (routing_oiface r,s) \<in> set (routing_port_ranges tbl S)" for S
   proof(induction tbl arbitrary: S)

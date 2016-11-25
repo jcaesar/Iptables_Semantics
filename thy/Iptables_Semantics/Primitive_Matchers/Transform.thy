@@ -1285,7 +1285,7 @@ theorem oiface_rewrite:
   assumes simplers: "simple_ruleset rs"
       and normalized: "\<forall> r \<in> set rs. normalized_nnf_match (get_match r)"
       and wf_ipassmt: "ipassmt_sanity_nowildcards ipassmt"
-      and ipassmt_from_rt: "ipassmt = map_of (routing_ipassmt rt)"
+      and ipassmt_from_rt: "ipassmt = map_of (routing_ipassmt rt ifs)"
       and correct_routing: "correct_routing rt"
       and rtbl_decided: "output_iface (routing_table_semantics rt (p_dst p)) = p_oiface p"
   shows "(common_matcher, \<alpha>),p\<turnstile> \<langle>optimize_matches (oiface_rewrite ipassmt) rs, s\<rangle> \<Rightarrow>\<^sub>\<alpha> t \<longleftrightarrow> (common_matcher, \<alpha>),p\<turnstile> \<langle>rs, s\<rangle> \<Rightarrow>\<^sub>\<alpha> t"
@@ -1725,7 +1725,7 @@ definition iface_try_rewrite
 where
   "iface_try_rewrite ipassmt rtblo rs \<equiv> 
   let o_rewrite = (case rtblo of None \<Rightarrow> id | Some rtbl \<Rightarrow> 
-    transform_optimize_dnf_strict \<circ> optimize_matches (oiface_rewrite (map_of_ipassmt (routing_ipassmt rtbl)))) in
+    transform_optimize_dnf_strict \<circ> optimize_matches (oiface_rewrite (map_of_ipassmt (routing_ipassmt rtbl (map fst ipassmt))))) in
   if ipassmt_sanity_disjoint (map_of ipassmt) \<and> ipassmt_sanity_defined rs (map_of ipassmt) then
   optimize_matches (iiface_rewrite (map_of_ipassmt ipassmt)) (o_rewrite rs)
   else
@@ -1849,12 +1849,12 @@ theorem iface_try_rewrite_rtbl:
       and nospoofing: "\<exists>ips. (map_of ipassmt) (Iface (p_iiface p)) = Some ips \<and> p_src p \<in> ipcidr_union_set (set ips)"
       and routing_decided: "output_iface (routing_table_semantics rtbl (p_dst p)) = p_oiface p"
       and correct_routing: "correct_routing rtbl"
-      and wf_ipassmt_o: "ipassmt_sanity_nowildcards (map_of (routing_ipassmt rtbl))"
+      and wf_ipassmt_o: "ipassmt_sanity_nowildcards (map_of (routing_ipassmt rtbl (map fst ipassmt)))" (* TODO: Meh. this is getting ugly. *)
       and wf_match_tac: "wf_unknown_match_tac \<alpha>"
   shows "(common_matcher, \<alpha>),p\<turnstile> \<langle>iface_try_rewrite ipassmt (Some rtbl) rs, s\<rangle> \<Rightarrow>\<^sub>\<alpha> t \<longleftrightarrow> (common_matcher, \<alpha>),p\<turnstile> \<langle>rs, s\<rangle> \<Rightarrow>\<^sub>\<alpha> t"
 proof -
   note oiface_rewrite = oiface_rewrite[OF simplers normalized wf_ipassmt_o refl correct_routing routing_decided]
-  let ?ors = "optimize_matches (oiface_rewrite (map_of (routing_ipassmt rtbl))) rs"
+  let ?ors = "optimize_matches (oiface_rewrite (map_of (routing_ipassmt rtbl (map fst ipassmt)))) rs"
   let ?nrs = "transform_optimize_dnf_strict ?ors"
   have osimplers: "simple_ruleset ?ors" using oiface_rewrite(2) .
   have nsimplers: "simple_ruleset ?nrs" using transform_optimize_dnf_strict_structure(1)[OF osimplers wf_match_tac] .

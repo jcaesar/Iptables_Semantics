@@ -173,7 +173,7 @@ begin
   lemma matches_oiface_rewrite:
        "normalized_nnf_match m \<Longrightarrow> ipassmt_sanity_nowildcards ipassmt (*TODO: check?*) \<Longrightarrow>
         correct_routing rt \<Longrightarrow>
-        ipassmt = map_of (routing_ipassmt rt) \<Longrightarrow>
+        ipassmt = map_of (routing_ipassmt rt ifs) \<Longrightarrow>
         output_iface (routing_table_semantics rt (p_dst p)) = p_oiface p \<Longrightarrow>
         matches (common_matcher, \<alpha>) (oiface_rewrite ipassmt m) a p \<longleftrightarrow> matches (common_matcher, \<alpha>) m a p"
   apply(rule matches_oiface_rewrite_ipassmt; assumption?)
