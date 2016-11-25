@@ -1287,7 +1287,7 @@ theorem oiface_rewrite:
       and wf_ipassmt: "ipassmt_sanity_nowildcards ipassmt"
       and ipassmt_from_rt: "ipassmt = map_of (routing_ipassmt rt ifs)"
       and correct_routing: "correct_routing rt"
-      and rtbl_decided: "output_iface (routing_table_semantics rt (p_dst p)) = p_oiface p"
+      and rtbl_decided: "routing_table_semantics rt (p_dst p) = Some ra" "output_iface ra = p_oiface p"
   shows "(common_matcher, \<alpha>),p\<turnstile> \<langle>optimize_matches (oiface_rewrite ipassmt) rs, s\<rangle> \<Rightarrow>\<^sub>\<alpha> t \<longleftrightarrow> (common_matcher, \<alpha>),p\<turnstile> \<langle>rs, s\<rangle> \<Rightarrow>\<^sub>\<alpha> t"
     and "simple_ruleset (optimize_matches (oiface_rewrite ipassmt) rs)"
   proof -
@@ -1299,7 +1299,7 @@ theorem oiface_rewrite:
      apply(rule arg_cong[where f="\<lambda>x. x = t"])
      apply(rule optimize_matches_generic[where P="\<lambda> m _. normalized_nnf_match m"])
       apply(simp add: normalized ;fail)
-     apply(rule matches_oiface_rewrite[OF _ _ _ ipassmt_from_rt]; assumption?)
+     apply(rule matches_oiface_rewrite[where ra=ra, OF _ _ _ ipassmt_from_rt]; assumption?)
         apply(simp_all add: wf_ipassmt correct_routing rtbl_decided)
      done
 qed
@@ -1847,12 +1847,13 @@ theorem iface_try_rewrite_rtbl:
       and normalized: "\<forall> r \<in> set rs. normalized_nnf_match (get_match r)"
       and wf_ipassmt: "ipassmt_sanity_nowildcards (map_of ipassmt)" "distinct (map fst ipassmt)"
       and nospoofing: "\<exists>ips. (map_of ipassmt) (Iface (p_iiface p)) = Some ips \<and> p_src p \<in> ipcidr_union_set (set ips)"
-      and routing_decided: "output_iface (routing_table_semantics rtbl (p_dst p)) = p_oiface p"
+      and routing_decided: "routing_table_semantics rtbl (p_dst p) = Some ra" "output_iface ra = p_oiface p"
       and correct_routing: "correct_routing rtbl"
-      and wf_ipassmt_o: "ipassmt_sanity_nowildcards (map_of (routing_ipassmt rtbl (map fst ipassmt)))" (* TODO: Meh. this is getting ugly. *)
+      and wf_rtbl: "routingtbl_sanity_nowildcards rtbl"
       and wf_match_tac: "wf_unknown_match_tac \<alpha>"
   shows "(common_matcher, \<alpha>),p\<turnstile> \<langle>iface_try_rewrite ipassmt (Some rtbl) rs, s\<rangle> \<Rightarrow>\<^sub>\<alpha> t \<longleftrightarrow> (common_matcher, \<alpha>),p\<turnstile> \<langle>rs, s\<rangle> \<Rightarrow>\<^sub>\<alpha> t"
 proof -
+  from routingtbl_sanity_nowildcards[OF wf_rtbl wf_ipassmt(1)]  have wf_ipassmt_o: "ipassmt_sanity_nowildcards (map_of (routing_ipassmt rtbl (map fst ipassmt)))" .
   note oiface_rewrite = oiface_rewrite[OF simplers normalized wf_ipassmt_o refl correct_routing routing_decided]
   let ?ors = "optimize_matches (oiface_rewrite (map_of (routing_ipassmt rtbl (map fst ipassmt)))) rs"
   let ?nrs = "transform_optimize_dnf_strict ?ors"

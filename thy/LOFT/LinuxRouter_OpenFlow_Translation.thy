@@ -668,7 +668,7 @@ lemma route2match_correct: "valid_prefix (routing_match a) \<Longrightarrow> pre
 by(simp add: route2match_def simple_matches.simps match_ifaceAny match_iface_refl ipset_from_cidr_0 prefix_match_semantics_ipset_from_netmask2)
 
 lemma s1_correct: "valid_prefixes rt \<Longrightarrow> has_default_route (rt::('i::len) prefix_routing) \<Longrightarrow> 
-  \<exists>rm ra. generalized_sfw (lr_of_tran_s1 rt) p = Some (rm,ra) \<and> ra = output_iface (routing_table_semantics rt (p_dst p))"
+  \<exists>rm ra. generalized_sfw (lr_of_tran_s1 rt) p = Some (rm,ra) \<and> ra = output_iface (the (routing_table_semantics rt (p_dst p)))"
 	apply(induction rt)
 	 apply(simp;fail)
 	apply(drule valid_prefixes_split)
@@ -856,8 +856,9 @@ proof(goal_cases)
   then guess rm .. then guess ra .. note rmra = this
   from r12 rmra have oifra: "oif = ra" by simp
   from r12 have sfw: "simple_fw fw p = Decision FinalAllow" using simple_fw_iff_generalized_fw_accept by blast
-  note ifupdateirrel = no_oif_matchD[OF s2, where any = " output_iface (routing_table_semantics rt (p_dst p))" and p = p, symmetric]
-  show ?case unfolding simple_linux_router_nol12_def by(simp add: Let_def ifupdateirrel sfw oifra rmra split: Option.bind_splits option.splits) 
+  from has_default_route_Some[OF s1] obtain act where act: "routing_table_semantics rt (p_dst p) = Some act" by blast
+  note ifupdateirrel = no_oif_matchD[OF s2, where any = "output_iface act" and p = p, symmetric]
+  show ?case unfolding simple_linux_router_nol12_def by(simp add: Let_def sfw oifra rmra act ifupdateirrel split: Option.bind_splits option.splits) 
 qed
 
 lemma lr_of_tran_fbs_acceptI:
@@ -871,7 +872,7 @@ proof(goal_cases)
   case 1
   from 1 have "simple_fw fw p = Decision FinalAllow" by(simp add: simple_linux_router_nol12_def Let_def nud ifupdateirrel split: Option.bind_splits state.splits final_decision.splits)
   then obtain r where r: "generalized_sfw (map simple_rule_dtor fw) p = Some (r, simple_action.Accept)" using simple_fw_iff_generalized_fw_accept by blast
-  have oif_def: "oif = output_iface (routing_table_semantics rt (p_dst p))" using 1 by(cases p) (simp add: simple_linux_router_nol12_def Let_def nud ifupdateirrel split: Option.bind_splits state.splits final_decision.splits)
+  have oif_def: "oif = output_iface (the (routing_table_semantics rt (p_dst p)))" using 1 by(cases p) (simp add: simple_linux_router_nol12_def Let_def nud ifupdateirrel split: Option.bind_splits state.splits final_decision.splits)
   note s1_correct[OF s1, of p] then guess rm .. then guess ra .. note rmra = this
   show ?case unfolding lr_of_tran_fbs_def Let_def
     apply(rule exI)
@@ -907,7 +908,8 @@ proof(goal_cases)
   from s2 have nud: "\<And>p. simple_fw fw p \<noteq> Undecided" by (metis has_default_policy state.distinct(1))
   note ifupdateirrel = no_oif_matchD[OF s2(1), symmetric]
   case 1
-  from 1 have "simple_fw fw p = Decision FinalDeny" by(simp add: simple_linux_router_nol12_def Let_def nud ifupdateirrel split: Option.bind_splits state.splits final_decision.splits)
+  from 1 have "simple_fw fw p = Decision FinalDeny" using has_default_route_Some[where p="p_dst p", OF s1]
+    by(simp add: simple_linux_router_nol12_def Let_def nud ifupdateirrel split: Option.bind_splits state.splits final_decision.splits) 
   then obtain r where r: "generalized_sfw (map simple_rule_dtor fw) p = Some (r, simple_action.Drop)" using simple_fw_iff_generalized_fw_drop by blast
   note s1_correct[OF s1, of p] then guess rm .. then guess ra .. note rmra = this
   show ?case unfolding lr_of_tran_fbs_def Let_def
@@ -979,8 +981,8 @@ proof -
     unfolding fun_app_def map_map[symmetric] snd_apfst map_snd_apfst map_snd_annotate_rlen using simple_match_valid_fbs[OF s1(1) s2(2)] .
   have *: "list_all (\<lambda>m. oiface (fst (snd m)) = ifaceAny) ?ard" using no_oif_match_fbs[OF s2(3)] .
   have not_undec: "\<And>p. simple_fw fw p \<noteq> Undecided" by (metis has_default_policy s2(1) state.simps(3))
-  have w1_1: "\<And>oif. OF_match_linear OF_match_fields_safe oft p = Action [Forward oif] \<Longrightarrow> simple_linux_router_nol12 rt fw p = Some (p\<lparr>p_oiface := oif\<rparr>) 
-    \<and> oif = output_iface (routing_table_semantics rt (p_dst p))"
+  have w1_1: "\<And>oif. OF_match_linear OF_match_fields_safe oft p = Action [Forward oif] \<Longrightarrow> simple_linux_router_nol12 rt fw p = Some (p\<lparr>p_oiface := oif\<rparr>)
+    \<and> oif = output_iface (the (routing_table_semantics rt (p_dst p)))"
   proof(intro conjI, goal_cases)
     case (1 oif)
     note s3_correct[OF vld ippkt ifvld(1) *, THEN iffD1, unfolded oft_def[symmetric], OF 1]
@@ -989,7 +991,7 @@ proof -
     then obtain r where "generalized_sfw (lr_of_tran_fbs rt fw ifs) p = Some (r, (oif, simple_action.Accept))" 
       unfolding map_map comp_def snd_apfst map_snd_annotate_rlen by blast
     thus ?case using lr_of_tran_fbs_acceptD[OF s1 s2(3)] by metis
-    thus "oif = output_iface (routing_table_semantics rt (p_dst p))"
+    thus "oif = output_iface (the (routing_table_semantics rt (p_dst p)))"
       by(cases p) (clarsimp simp: simple_linux_router_nol12_def Let_def not_undec split: Option.bind_splits state.splits final_decision.splits) 
   qed
   have w1_2: "\<And>oif. simple_linux_router_nol12 rt fw p = Some (p\<lparr>p_oiface := oif\<rparr>) \<Longrightarrow> OF_match_linear OF_match_fields_safe oft p = Action [Forward oif]"
@@ -1021,12 +1023,12 @@ proof -
     moreover note s3_correct[OF vld ippkt ifvld(1) *, THEN iffD2, unfolded oft_def[symmetric], of "[]"]
     ultimately show ?case by force
   qed
-  have lr_determ: "\<And>a. simple_linux_router_nol12 rt fw p = Some a \<Longrightarrow> a = p\<lparr>p_oiface := output_iface (routing_table_semantics rt (p_dst p))\<rparr>"
+  have lr_determ: "\<And>a. simple_linux_router_nol12 rt fw p = Some a \<Longrightarrow> a = p\<lparr>p_oiface := output_iface (the (routing_table_semantics rt (p_dst p)))\<rparr>"
     by(clarsimp simp: simple_linux_router_nol12_def Let_def not_undec split: Option.bind_splits state.splits final_decision.splits)
   show notno: "OF_priority_match OF_match_fields_safe oft p \<noteq> NoAction"
     apply(cases "simple_linux_router_nol12 rt fw p")
     using w2 apply(simp)
-    using w1[of "output_iface (routing_table_semantics rt (p_dst p))"] apply(simp)
+    using w1[of "output_iface (the (routing_table_semantics rt (p_dst p)))"] apply(simp)
     apply(drule lr_determ)
     apply(simp)
   done
@@ -1034,7 +1036,7 @@ proof -
   show notmult: "\<And>ls. OF_priority_match OF_match_fields_safe oft p = Action ls \<longrightarrow> length ls \<le> 1"
   apply(cases "simple_linux_router_nol12 rt fw p")
     using w2 apply(simp)
-    using w1[of "output_iface (routing_table_semantics rt (p_dst p))"] apply(simp)
+    using w1[of "output_iface (the (routing_table_semantics rt (p_dst p)))"] apply(simp)
     apply(drule lr_determ)
     apply(clarsimp)
   done

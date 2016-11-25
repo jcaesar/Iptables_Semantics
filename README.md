@@ -42,6 +42,8 @@ See README.md in [haskell_tool](./haskell_tool/).
 
 ## Isabelle Theory Files
 
+The theory files are compatible with Isabelle 2016-1-RC2.
+
 Checking all proofs:
 
 ```

@@ -46,7 +46,7 @@ definition simple_linux_router ::
          interface list \<Rightarrow> 'i simple_packet_ext \<Rightarrow> 'i simple_packet_ext option" where
 "simple_linux_router rt fw mlf ifl p \<equiv> do {
 	_ \<leftarrow> iface_packet_check ifl p;
-	let rd (* routing decision *) = routing_table_semantics rt (p_dst p);
+	rd (* routing decision *) \<leftarrow> routing_table_semantics rt (p_dst p);
 	let p = p\<lparr>p_oiface := output_iface rd\<rparr>;
 	let fd (* firewall decision *) = simple_fw fw p;
 	_ \<leftarrow> (case fd of Decision FinalAllow \<Rightarrow> Some () | Decision FinalDeny \<Rightarrow> None);
@@ -65,7 +65,7 @@ Therefore, we present this model:\<close>
 definition simple_linux_router_nol12 ::
     "'i routing_rule list \<Rightarrow> 'i simple_rule list \<Rightarrow> ('i,'a) simple_packet_scheme \<Rightarrow> ('i::len,'a) simple_packet_scheme option" where
 "simple_linux_router_nol12 rt fw p \<equiv> do {
-	let rd = routing_table_semantics rt (p_dst p);
+	rd \<leftarrow> routing_table_semantics rt (p_dst p);
 	let p = p\<lparr>p_oiface := output_iface rd\<rparr>;
 	let fd = simple_fw fw p;
 	_ \<leftarrow> (case fd of Decision FinalAllow \<Rightarrow> Some () | Decision FinalDeny \<Rightarrow> None);
@@ -90,13 +90,15 @@ lemma rtr_nomac_e2:
 	shows "\<exists>po'. simple_linux_router_nol12 rt fw pi = Some po'"
 using assms
 unfolding simple_linux_router_nol12_def simple_linux_router_def
-by(clarsimp simp add: Let_def split: option.splits state.splits final_decision.splits Option.bind_splits if_splits)
+  by(clarsimp simp add: Let_def
+    split: option.splits state.splits final_decision.splits Option.bind_splits if_splits) (safe, simp_all)
 
 lemma rtr_nomac_e3:
   fixes pi
 	assumes "simple_linux_router_nol12 rt fw pi = Some po"
 	assumes "iface_packet_check ifl pi = Some i(*don'tcare*)"
-	assumes "mlf (fromMaybe (p_dst pi) (next_hop (routing_table_semantics rt (p_dst pi)))) = Some i2"
+	assumes  "routing_table_semantics rt (p_dst pi) = Some ra"
+	assumes "mlf (fromMaybe (p_dst pi) (next_hop ra)) = Some i2"
 	shows "\<exists>po'. simple_linux_router rt fw mlf ifl pi = Some po'"
 using assms
 unfolding simple_linux_router_nol12_def simple_linux_router_def
@@ -105,7 +107,7 @@ by(clarsimp simp add: Let_def split: option.splits state.splits final_decision.s
 lemma rtr_nomac_eq:
   fixes pi
 	assumes "iface_packet_check ifl pi \<noteq> None"
-	assumes "mlf (fromMaybe (p_dst pi) (next_hop (routing_table_semantics rt (p_dst pi)))) \<noteq> None"
+	assumes "mlf (fromMaybe (p_dst pi) (next_hop (the (routing_table_semantics rt (p_dst pi))))) \<noteq> None"
 	shows "\<exists>x. map_option (\<lambda>p. p\<lparr>p_l2dst := x\<rparr>) (simple_linux_router_nol12 rt fw pi) = simple_linux_router rt fw mlf ifl pi"
 proof(cases "simple_linux_router_nol12 rt fw pi"; cases "simple_linux_router rt fw mlf ifl pi")
 	fix a b
@@ -119,9 +121,11 @@ next
 	thus ?thesis ..
 next
 	fix a assume as: "simple_linux_router_nol12 rt fw pi = Some a" "simple_linux_router rt fw mlf ifl pi = None"
+	from as(1) obtain ra where ra: "routing_table_semantics rt (p_dst pi) = Some ra"
+    by(simp add: simple_linux_router_nol12_def split: Option.bind_splits)
 	from \<open>iface_packet_check ifl pi \<noteq> None\<close> obtain i3 where "iface_packet_check ifl pi = Some i3" by blast
 	note rtr_nomac_e3[OF as(1) this] assms(2)
-	with as(2) have False by force
+	with as(2) have False using not_None_eq ra by force
 	thus ?thesis ..
 qed simp
 

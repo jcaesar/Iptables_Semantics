@@ -654,11 +654,12 @@ theorem to_simple_firewall_without_interfaces:
       and nospoofing: "\<forall>(p::('i::len, 'a) tagged_packet_scheme).
             \<exists>ips. (map_of ipassmt) (Iface (p_iiface p)) = Some ips \<and> p_src p \<in> ipcidr_union_set (set ips)"
       --"If a routing table was passed, the output interface for any packet we consider is decided based on it."
-      and routing_decided: "\<And>rtbl (p::('i,'a) tagged_packet_scheme). rtblo = Some rtbl \<Longrightarrow> output_iface (routing_table_semantics rtbl (p_dst p)) = p_oiface p"
+      and routing_decided: "\<And>rtbl (p::('i,'a) tagged_packet_scheme). rtblo = Some rtbl \<Longrightarrow> 
+        routing_table_semantics rtbl (p_dst p) = Some ra \<and> output_iface ra = p_oiface p"
       --"A passed routing table is wellformed"
       and correct_routing: "\<And>rtbl. rtblo = Some rtbl \<Longrightarrow> correct_routing rtbl"
       --"A passed routing table contains no interfaces with wildcard names"
-      and routing_no_wildcards: "\<And>rtbl. rtblo = Some rtbl \<Longrightarrow> ipassmt_sanity_nowildcards (map_of (routing_ipassmt rtbl (map fst ipassmt)))"
+      and routing_no_wildcards: "\<And>rtbl. rtblo = Some rtbl \<Longrightarrow> routingtbl_sanity_nowildcards rtbl"
 
   --"the set of new packets, which are accepted is an overapproximations"
   shows "{p::('i,'a) tagged_packet_scheme. (common_matcher, in_doubt_allow),p\<turnstile> \<langle>rs, Undecided\<rangle> \<Rightarrow>\<^sub>\<alpha> Decision FinalAllow \<and> newpkt p} \<subseteq>

@@ -12,7 +12,8 @@ text\<open>\begin{quote}The procedure is that the
 (* There's an iptables rpf in ./net/ipv4/netfilter/ipt_rpfilter.c:35 
    More interesting is ./net/ipv4/fib_frontend.c:323 though
 *)
-definition "rpf_strict rtbl p \<equiv> output_iface (routing_table_semantics rtbl (p_src p)) = p_iiface p"
+definition "rpf_strict rtbl p \<equiv> case routing_table_semantics rtbl (p_src p) of Some ra \<Rightarrow> 
+  output_iface ra = p_iiface p | None \<Rightarrow> False"
 
 text\<open>\begin{quote}
    Feasible Path Reverse Path Forwarding (Feasible RPF) is an extension
@@ -43,13 +44,13 @@ lemma "prefix_match_semantics (PrefixMatch 0 0) any" by (simp add: valid_prefix_
 
 text\<open>The hierarchy unfolds:\<close>
 lemma 
-  assumes "valid_prefixes rtbl" "is_longest_prefix_routing rtbl" "has_default_route rtbl" "unambiguous_routing rtbl"
+  assumes "valid_prefixes rtbl" "is_longest_prefix_routing rtbl" "unambiguous_routing rtbl"
   shows "rpf_strict rtbl p \<Longrightarrow> rpf_semifeasible rtbl p"
 unfolding rpf_semifeasible_def rpf_strict_def
 (* meh, the thing is subtly different enough from existential_routing that we can't use that directly *)
 proof goal_cases
   case 1
-  then obtain act where *: "routing_table_semantics rtbl (p_src p) = act" by blast
+  then obtain act where *: "routing_table_semantics rtbl (p_src p) = Some act" by (split option.splits) blast
   with existential_routing[OF assms]
   have ex: "(\<exists>rr\<in>set rtbl.
         prefix_match_semantics (routing_match rr) (p_src p) \<and>
@@ -107,8 +108,8 @@ unfolding rpf_strict_def
   apply(intro iffI[rotated])
   apply(clarify)
   apply(auto dest: routing_ipassmt_wi_sound[OF vpfx])[1]
-  apply(subst(asm) routing_ipassmt_wi[OF vpfx])
-  apply blast
+  apply(simp split: option.splits)
+  using routing_ipassmt_wi[OF vpfx] apply fast
 done
 
 definition "rpf_semifeasible_round rtbl n space \<equiv>

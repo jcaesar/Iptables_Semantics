@@ -54,7 +54,7 @@ We draft the first description of our linux router model:
 We decided that this description is best formalized as an abortable program in the option monad:\<close>
 lemma "simple_linux_router rt fw mlf ifl p \<equiv> do {
 	_ \<leftarrow> iface_packet_check ifl p;
-	let rd (* routing decision *) = routing_table_semantics rt (p_dst p);
+	rd (* routing decision *) \<leftarrow> routing_table_semantics rt (p_dst p);
 	let p = p\<lparr>p_oiface := output_iface rd\<rparr>;
 	let fd (* firewall decision *) = simple_fw fw p;
 	_ \<leftarrow> (case fd of Decision FinalAllow \<Rightarrow> Some () | Decision FinalDeny \<Rightarrow> None);
@@ -76,7 +76,7 @@ and looking up their MAC addresses \emph{a priori}.
 A test-wise implementation of the translation based on this model showed acceptable results.
 However, we deemed the \emph{a priori} lookup of the MAC addresses to be rather inelegant and built a second model.\<close>
 definition "simple_linux_router_altered rt fw ifl p \<equiv> do {
-	let rd = routing_table_semantics rt (p_dst p);
+	rd \<leftarrow> routing_table_semantics rt (p_dst p);
 	let p = p\<lparr>p_oiface := output_iface rd\<rparr>;
 		_ \<leftarrow> if p_oiface p = p_iiface p then None else Some ();
 	let fd = simple_fw fw p;
@@ -98,7 +98,7 @@ The intuitive explanation is that an OpenFlow match can not have a field for the
 We thus simplified the model even further:
 \<close>
 lemma "simple_linux_router_nol12 rt fw p \<equiv> do {
-	let rd = routing_table_semantics rt (p_dst p);
+	rd \<leftarrow> routing_table_semantics rt (p_dst p);
 	let p = p\<lparr>p_oiface := output_iface rd\<rparr>;
 	let fd = simple_fw fw p;
 	_ \<leftarrow> (case fd of Decision FinalAllow \<Rightarrow> Some () | Decision FinalDeny \<Rightarrow> None);
@@ -108,7 +108,7 @@ text\<open>We continue with this definition as a basis for our translation.
 Even this strongly altered version and the original linux firewall still behave the same in a substantial amount of cases:\<close>
 theorem
 	"\<lbrakk>iface_packet_check ifl pii \<noteq> None;
-	mlf (case next_hop (routing_table_semantics rt (p_dst pii)) of None \<Rightarrow> p_dst pii | Some a \<Rightarrow> a) \<noteq> None\<rbrakk> \<Longrightarrow>
+	mlf (case next_hop (the (routing_table_semantics rt (p_dst pii))) of None \<Rightarrow> p_dst pii | Some a \<Rightarrow> a) \<noteq> None\<rbrakk> \<Longrightarrow>
 	\<exists>x. map_option (\<lambda>p. p\<lparr>p_l2dst := x\<rparr>) (simple_linux_router_nol12 rt fw pii) = simple_linux_router rt fw mlf ifl pii"
 by(fact rtr_nomac_eq[unfolded fromMaybe_def])
 text\<open>The conditions are to be read as ``The check whether a received packet has the correct destination MAC never returns @{const False}'' and 
@@ -141,8 +141,8 @@ by(fact has_default_route_alt)
 text\<open>The third is not needed in any of the further proofs, so we omit it.\<close>
 
 text\<open>The semantics of a routing table is to simply traverse the list until a matching entry is found.\<close>
-schematic_goal "routing_table_semantics (rt_entry # rt) dst_addr = (if prefix_match_semantics (routing_match rt_entry) dst_addr then routing_action rt_entry else routing_table_semantics rt dst_addr)" by(fact routing_table_semantics.simps)
-text\<open>If no matching entry is found, the behavior is undefined.\<close>
+schematic_goal "routing_table_semantics (rt_entry # rt) dst_addr = (if prefix_match_semantics (routing_match rt_entry) dst_addr then Some (routing_action rt_entry) else routing_table_semantics rt dst_addr)" by(fact routing_table_semantics.simps)
+text\<open>If no matching entry is found, @{const None} is returned.\<close>
 
 subsubsection\<open>iptables Firewall\<close>
 text_raw\<open>\label{sec:lfwfw}\<close>

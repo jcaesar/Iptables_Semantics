@@ -55,23 +55,24 @@ lemma has_default_route_alt: "has_default_route rt \<longleftrightarrow> (\<exis
 
 subsection\<open>Single Packet Semantics\<close>
 
-fun routing_table_semantics :: "('i::len) prefix_routing \<Rightarrow> 'i word \<Rightarrow> 'i routing_action" where
-"routing_table_semantics [] _ = routing_action (undefined::'i routing_rule)" | 
-"routing_table_semantics (r#rs) p = (if prefix_match_semantics (routing_match r) p then routing_action r else routing_table_semantics rs p)"
-lemma routing_table_semantics_ports_from_table: "valid_prefixes rtbl \<Longrightarrow> has_default_route rtbl \<Longrightarrow> 
-  routing_table_semantics rtbl packet = r \<Longrightarrow> r \<in> routing_action ` set rtbl"
+fun routing_table_semantics :: "('i::len) prefix_routing \<Rightarrow> 'i word \<Rightarrow> 'i routing_action option" where
+"routing_table_semantics [] _ = None" | 
+"routing_table_semantics (r#rs) p = (if prefix_match_semantics (routing_match r) p then Some (routing_action r) else routing_table_semantics rs p)"
+lemma has_default_route_Some: "valid_prefixes rtbl \<Longrightarrow> has_default_route rtbl \<Longrightarrow>
+  \<exists>act. routing_table_semantics rtbl p = Some act"
+ using valid_prefixes_split zero_prefix_match_all by(induction rtbl; simp; blast)
+lemma routing_table_semantics_ports_from_table: "valid_prefixes rtbl \<Longrightarrow> 
+  routing_table_semantics rtbl packet = Some ra \<Longrightarrow> ra \<in> routing_action ` set rtbl"
 proof(induction rtbl)
   case (Cons r rs)
   note v_pfxs = valid_prefixes_split[OF Cons.prems(1)]
   show ?case
-  proof(cases "pfxm_length (routing_match r) = 0")
-    case True                                                 
-    note zero_prefix_match_all[OF conjunct1[OF v_pfxs] True] Cons.prems(3)
-    then show ?thesis by simp
+  proof(cases "prefix_match_semantics (routing_match r) packet")
+    case True thus ?thesis using Cons.prems by simp
   next
     case False
-    hence "has_default_route rs" using Cons.prems(2) by simp
-    from Cons.IH[OF conjunct2[OF v_pfxs] this] Cons.prems(3) show ?thesis by force
+    hence "routing_table_semantics rs packet = Some ra" using Cons.prems by simp
+    with Cons.IH[OF conjunct2[OF v_pfxs]] Cons.prems show ?thesis by force
   qed
 qed simp
 
@@ -184,8 +185,8 @@ qed
 lemma "routing_rule_sort_key (rr_ctor (0,0,0,0) 8 [] None 0) > routing_rule_sort_key (rr_ctor (0,0,0,0) 24 [] None 0)" by eval
 (* get the inequality right\<dots> bigger means lower priority *)
 text\<open>In case you don't like that formulation of @{const is_longest_prefix_routing} over sorting, this is your lemma.\<close>
-theorem existential_routing: "valid_prefixes rtbl \<Longrightarrow> is_longest_prefix_routing rtbl \<Longrightarrow> has_default_route rtbl \<Longrightarrow> unambiguous_routing rtbl \<Longrightarrow>
-routing_table_semantics rtbl addr = act \<longleftrightarrow> (\<exists>rr \<in> set rtbl. prefix_match_semantics (routing_match rr) addr \<and> routing_action rr = act \<and>
+theorem existential_routing: "valid_prefixes rtbl \<Longrightarrow> is_longest_prefix_routing rtbl \<Longrightarrow> unambiguous_routing rtbl \<Longrightarrow>
+routing_table_semantics rtbl addr = Some act \<longleftrightarrow> (\<exists>rr \<in> set rtbl. prefix_match_semantics (routing_match rr) addr \<and> routing_action rr = act \<and>
   (\<forall>ra \<in> set rtbl. routing_rule_sort_key ra < routing_rule_sort_key rr \<longrightarrow> \<not>prefix_match_semantics (routing_match ra) addr))"
 proof(induction rtbl)
   case Nil thus ?case by simp
@@ -201,13 +202,13 @@ next
       thus ?thesis ..
     next
       case False
-      with Cons.prems have mprems: "valid_prefixes rtbl" "is_longest_prefix_routing rtbl" "has_default_route rtbl" "unambiguous_routing rtbl" 
+      with Cons.prems have mprems: "valid_prefixes rtbl" "is_longest_prefix_routing rtbl" "unambiguous_routing rtbl" 
         by(simp_all add: valid_prefixes_split unambiguous_routing_Cons is_longest_prefix_routing_def sorted_Cons)
       show ?thesis using Cons.IH[OF mprems] False \<open>\<not> prefix_match_semantics (routing_match rr) addr\<close> by simp
     qed
   next
     case True
-    from True have [simp]: "routing_table_semantics (rr # rtbl) addr = routing_action rr" by simp
+    from True have [simp]: "routing_table_semantics (rr # rtbl) addr = Some (routing_action rr)" by simp
     show ?thesis (is "?l \<longleftrightarrow> ?r") proof
       assume ?l
       hence [simp]: "act = routing_action rr" by(simp add: True)
@@ -222,7 +223,7 @@ next
         from C have e: "rr' \<in> set rtbl" using rr' by simp
         show False proof cases
           assume eq: "routing_match rr' = routing_match rr"
-          with e have "routing_rule_sort_key rr < routing_rule_sort_key rr'" using unambigous_prefix_routing_strong_mono[OF Cons.prems(2,4) _ eq] by simp
+          with e have "routing_rule_sort_key rr < routing_rule_sort_key rr'" using unambigous_prefix_routing_strong_mono[OF Cons.prems(2,3) _ eq] by simp
           with True rr' show False by simp
         next
           assume ne: "routing_match rr' \<noteq> routing_match rr"
@@ -240,8 +241,10 @@ next
     qed
   qed
 qed
-    
 
+lemma nonexistential_routing: "valid_prefixes rtbl \<Longrightarrow>
+routing_table_semantics rtbl addr = None \<longleftrightarrow> (\<forall>rr \<in> set rtbl. \<not>prefix_match_semantics (routing_match rr) addr)"
+  using valid_prefixes_split by(induction rtbl; simp; blast)
 
 subsection\<open>Printing\<close>
 
@@ -298,7 +301,7 @@ can be used to construct the sets (or rather: the intervals)
 of IPs that are actually matched by an entry in a routing table.\<close>
 
 private fun routing_port_ranges :: "'i prefix_routing \<Rightarrow> 'i wordinterval \<Rightarrow> (string \<times> ('i::len) wordinterval) list" where
-"routing_port_ranges [] lo = (if wordinterval_empty lo then [] else [(routing_oiface (undefined::'i routing_rule),lo)])" | (* insert default route to nirvana. has to match what routing_table_semantics does. *)
+"routing_port_ranges [] lo = []" |
 "routing_port_ranges (a#as) lo = (
 	let rpm = range_prefix_match (routing_match a) lo; m = fst rpm; nm = snd rpm in (
 	(routing_oiface a,m) # routing_port_ranges as nm))"
@@ -307,8 +310,9 @@ private lemma routing_port_ranges_subsets:
 "(a1, b1) \<in> set (routing_port_ranges tbl s) \<Longrightarrow> wordinterval_to_set b1 \<subseteq> wordinterval_to_set s"
   by(induction tbl arbitrary: s; fastforce simp add: Let_def split: if_splits)
 
-private lemma routing_port_ranges_sound: "e \<in> set (routing_port_ranges tbl s) \<Longrightarrow> k \<in> wordinterval_to_set (snd e) \<Longrightarrow> valid_prefixes tbl \<Longrightarrow>
-	fst e = output_iface (routing_table_semantics tbl k)"
+private lemma routing_port_ranges_sound: "e \<in> set (routing_port_ranges tbl s) \<Longrightarrow> 
+  k \<in> wordinterval_to_set (snd e) \<Longrightarrow> valid_prefixes tbl \<Longrightarrow>
+	\<exists>ra. routing_table_semantics tbl k = Some ra \<and> fst e = output_iface ra"
 proof(induction tbl arbitrary: s)
 	case (Cons a as)
 	note s = Cons.prems(1)[unfolded routing_port_ranges.simps Let_def list.set]
@@ -365,11 +369,12 @@ qed (simp split: if_splits)
 
 private lemma routing_port_rangesI:
 "valid_prefixes tbl \<Longrightarrow>
- output_iface (routing_table_semantics tbl k) = output_port \<Longrightarrow>
+ routing_table_semantics tbl k = Some ra \<Longrightarrow>
+ output_iface ra = output_port \<Longrightarrow>
  k \<in> wordinterval_to_set wi \<Longrightarrow>
  (\<exists>ip_range. (output_port, ip_range) \<in> set (routing_port_ranges tbl wi) \<and> k \<in> wordinterval_to_set ip_range)"
 proof(induction tbl arbitrary: wi)
-  case Nil thus ?case by simp blast
+  case Nil thus ?case by simp
 next
   case (Cons r rs)
   from Cons.prems(1) have vpfx: "valid_prefix (routing_match r)" and vpfxs: "valid_prefixes rs" 
@@ -378,15 +383,15 @@ next
   proof(cases "prefix_match_semantics (routing_match r) k")
     case True
     thus ?thesis 
-      using Cons.prems(2) using vpfx \<open>k \<in> wordinterval_to_set wi\<close>
+      using Cons.prems(2,3) using vpfx \<open>k \<in> wordinterval_to_set wi\<close>
       by (intro exI[where x =  "fst (range_prefix_match (routing_match r) wi)"]) 
          (simp add: prefix_match_semantics_wordset Let_def)
   next
     case False
     with \<open>k \<in> wordinterval_to_set wi\<close> have ksnd: "k \<in> wordinterval_to_set (snd (range_prefix_match (routing_match r) wi))"
       by (simp add: prefix_match_semantics_wordset vpfx)
-    have mpr: "output_iface (routing_table_semantics rs k) = output_port" using Cons.prems False by simp
-    note Cons.IH[OF vpfxs mpr ksnd]
+    have mpr: "routing_table_semantics rs k = Some ra" using Cons.prems False by simp
+    note Cons.IH[OF vpfxs mpr \<open>output_iface ra = output_port\<close> ksnd]
     thus ?thesis by(fastforce simp: Let_def)
   qed
 qed
@@ -421,11 +426,6 @@ private lemma routing_ipassmt_wi_subsetted:
   unfolding routing_ipassmt_wi_def reduce_range_destination_def
   by(fastforce simp add: Set.image_iff wordinterval_Union comp_def)
 
-(* TODO: move *)
-lemma wordinterval_Union_append: "wordinterval_Union (a @ b) = wordinterval_union (wordinterval_Union a) (wordinterval_Union b)"
-
-  sorry
-
 text\<open>This lemma should hold without the @{const valid_prefixes} assumption, but that would break the semantic argument and make the proof a lot harder.\<close>
 lemma routing_ipassmt_wi_disjoint:
 assumes vpfx: "valid_prefixes (tbl::('i::len) prefix_routing)"
@@ -449,14 +449,14 @@ proof(rule ccontr)
   text\<open>Soudness tells us that the both @{term a1} and @{term a2} have to be the result of routing @{term x}.\<close>
   note routing_port_ranges_sound[OF b1g(3), unfolded fst_conv snd_conv, OF b1g(1) vpfx] routing_port_ranges_sound[OF b2g(3), unfolded fst_conv snd_conv, OF b2g(1) vpfx]
   text\<open>A contradiction follows from @{thm dif}.\<close>
-  with dif show False by simp
+  with dif show False by clarsimp
 qed
 
 lemma routing_ipassmt_wi_sound:
   assumes vpfx: "valid_prefixes tbl"
   and ins: "(ea,eb) \<in> set (routing_ipassmt_wi tbl ifs)"
   and x: "k \<in> wordinterval_to_set eb"
-  shows "ea = output_iface (routing_table_semantics tbl k)"
+  shows "\<exists>ra. routing_table_semantics tbl k = Some ra \<and> ea = output_iface ra"
 proof -
   note iuf = ins[unfolded routing_ipassmt_wi_def reduce_range_destination_def Let_def, simplified, unfolded Set.image_iff comp_def, simplified]
   from x have "\<exists>b1g. k \<in> wordinterval_to_set b1g \<and> wordinterval_to_set b1g \<subseteq> wordinterval_to_set eb \<and> (ea, b1g) \<in> set (routing_port_ranges tbl wordinterval_UNIV)"
@@ -469,14 +469,14 @@ qed
 theorem routing_ipassmt_wi:
 assumes vpfx: "valid_prefixes tbl"
   shows 
-  "output_iface (routing_table_semantics tbl k) = output_port \<longleftrightarrow>
+  "(\<exists>ra. routing_table_semantics tbl k = Some ra \<and> output_iface ra = output_port) \<longleftrightarrow>
     (\<exists>ip_range. k \<in> wordinterval_to_set ip_range \<and> (output_port, ip_range) \<in> set (routing_ipassmt_wi tbl ifs))"
 proof (intro iffI, goal_cases)
   case 2 with vpfx routing_ipassmt_wi_sound show ?case by blast
 next
   case 1
   then obtain ip_range where "(output_port, ip_range) \<in> set (routing_port_ranges tbl wordinterval_UNIV) \<and> k \<in> wordinterval_to_set ip_range"
-    using routing_port_rangesI[where wi = wordinterval_UNIV, OF vpfx] by auto
+    using routing_port_rangesI[where wi = wordinterval_UNIV, OF vpfx] by fastforce
   thus ?case
     unfolding routing_ipassmt_wi_def reduce_range_destination_def
     unfolding Let_def comp_def
@@ -502,6 +502,18 @@ proof -
   thus ?thesis
     unfolding routing_ipassmt_wi_def reduce_range_destination_def
     by(force simp add: Set.image_iff)
+qed
+
+lemma routing_ipassmt_wi_iface_sources: 
+  assumes "(ifce, wi) \<in> set (routing_ipassmt_wi rtbl ifs)" 
+  shows "(\<exists>rr \<in> set rtbl. ifce = routing_oiface rr) \<or> ifce \<in> set ifs"
+proof -
+  have "(ifce, b) \<in> set (routing_port_ranges rtbl wi)
+         \<Longrightarrow> \<exists>rr\<in>set rtbl. ifce = routing_oiface rr" for b wi
+    by(induction rtbl arbitrary: wi; simp add: Let_def; blast)
+  with assms show ?thesis
+    unfolding routing_ipassmt_wi_def reduce_range_destination_def
+    by(clarsimp simp: comp_def)
 qed
 
 end

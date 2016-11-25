@@ -22,13 +22,19 @@ private lemma map_of_map_Iface: "map_of (map (\<lambda>x. (Iface (fst x), f (snd
         map_option f ((map_of xs) ifce)"
   by (induct xs) (auto)
 
+(*
+We used to do trickery like this
 lemma "routing_ipassmt_wi ([]::32 prefix_routing) [] = [(output_iface (routing_action (undefined :: 32 routing_rule)), WordInterval 0 0xFFFFFFFF)]"
   by code_simp
+to get around having to assume a default route all the time. No more.
+*)
+lemma "routing_ipassmt_wi ([]::32 prefix_routing) [] = []" by eval
 
 
 lemma routing_ipassmt: "
     valid_prefixes rt \<Longrightarrow>
-    output_iface (routing_table_semantics rt (p_dst p)) = p_oiface p \<Longrightarrow>
+    routing_table_semantics rt (p_dst p) = Some ra \<Longrightarrow>
+    output_iface ra = p_oiface p \<Longrightarrow>
     \<exists>p_ips. map_of (routing_ipassmt rt ifs) (Iface (p_oiface p)) = Some p_ips \<and> p_dst p \<in> ipcidr_union_set (set p_ips)"
   apply(simp add: routing_ipassmt_def)
   apply(drule routing_ipassmt_wi[where output_port="p_oiface p" and k="p_dst p" and ifs="map iface_sel ifs"])
@@ -57,6 +63,22 @@ lemma routing_ipassmt_distinct: "distinct (map fst (routing_ipassmt rtbl ifs))"
   apply(subst distinct_map[where f = Iface and xs = "map fst (routing_ipassmt_wi rtbl (map iface_sel ifs))", simplified, unfolded comp_def])
   apply(auto intro: inj_onI)
 done
+
+term ipassmt_sanity_nowildcards
+definition "routingtbl_sanity_nowildcards \<equiv> list_all (Not \<circ> iface_is_wildcard \<circ> Iface \<circ> routing_oiface)"
+lemma routingtbl_sanity_nowildcards_alt: "routingtbl_sanity_nowildcards rtbl \<longleftrightarrow> (\<forall>rr \<in> set rtbl. \<not>iface_is_wildcard (Iface (routing_oiface rr)))"
+  unfolding routingtbl_sanity_nowildcards_def by(simp add: comp_def list_all_iff)
+lemma routingtbl_sanity_nowildcards: "\<lbrakk>routingtbl_sanity_nowildcards rtbl; ipassmt_sanity_nowildcards (map_of ipassmt)\<rbrakk>
+\<Longrightarrow> ipassmt_sanity_nowildcards (map_of (routing_ipassmt rtbl (map fst ipassmt)))"
+  unfolding routingtbl_sanity_nowildcards_alt ipassmt_sanity_nowildcards_def
+  unfolding routing_ipassmt_def 
+  apply(clarsimp simp add: comp_def reduce_range_destination_def)
+  apply(drule map_of_SomeD)
+  apply(clarsimp)
+  apply(drule routing_ipassmt_wi_iface_sources)
+  apply(auto simp add: image_iff dom_map_of_conv_image_fst)
+done
+  
   
 end
 
