@@ -17,7 +17,7 @@ type IsabelleIpAssmt a = [(Isabelle.Iface, [(Isabelle.Word a, Isabelle.Nat)])]
 
 showIpAssmtDiff assmt rtbl = unlines tbl 
     where
-        diff = Isabelle.ipassmt_diff assmt (Isabelle.routing_ipassmt rtbl)
+        diff = Isabelle.ipassmt_diff assmt (Isabelle.routing_ipassmt rtbl (map fst assmt))
         show_cidr = show . uncurry Isabelle.PrefixMatch
         pfxlen = foldr max 5 . map (length . show_cidr) . concat . uncurry (++) . unzip . map snd $ diff
         iftitle = "Interface"

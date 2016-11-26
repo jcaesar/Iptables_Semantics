@@ -3805,14 +3805,19 @@ routing_port_ranges (a : asa) lo =
 
 routing_ipassmt_wi ::
   forall a.
-    (Len a) => [Routing_rule_ext a ()] -> [([Prelude.Char], Wordinterval a)];
-routing_ipassmt_wi tbl =
-  reduce_range_destination (routing_port_ranges tbl wordinterval_UNIV);
+    (Len a) => [Routing_rule_ext a ()] ->
+                 [[Prelude.Char]] -> [([Prelude.Char], Wordinterval a)];
+routing_ipassmt_wi tbl ifs =
+  reduce_range_destination
+    (routing_port_ranges tbl wordinterval_UNIV ++
+      map (\ ifce -> (ifce, empty_WordInterval)) ifs);
 
 routing_ipassmt ::
-  forall a. (Len a) => [Routing_rule_ext a ()] -> [(Iface, [(Word a, Nat)])];
-routing_ipassmt rt =
-  map (apfst Iface . apsnd cidr_split) (routing_ipassmt_wi rt);
+  forall a.
+    (Len a) => [Routing_rule_ext a ()] -> [Iface] -> [(Iface, [(Word a, Nat)])];
+routing_ipassmt rt ifs =
+  map (apfst Iface . apsnd cidr_split)
+    (routing_ipassmt_wi rt (map iface_sel ifs));
 
 iface_try_rewrite ::
   forall a.
@@ -3827,7 +3832,8 @@ iface_try_rewrite ipassmt rtblo rs =
         Just rtbl ->
           transform_optimize_dnf_strict .
             optimize_matches
-              (oiface_rewrite (map_of_ipassmt (routing_ipassmt rtbl)));
+              (oiface_rewrite
+                (map_of_ipassmt (routing_ipassmt rtbl (map fst ipassmt))));
       });
   } in (if let {
              is = image fst (Set ipassmt);
