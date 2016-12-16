@@ -280,7 +280,7 @@ private lemma ipset_prefix_match_complete: "rpm = ipset_prefix_match pfx rg \<Lo
   (fst rpm) \<union> (snd rpm) = rg" by force
 private lemma rpm_m_dup_simp: "rg \<inter> fst (ipset_prefix_match (routing_match r) rg) = fst (ipset_prefix_match (routing_match r) rg)"
   by simp
-private definition range_prefix_match :: "'i::len prefix_match \<Rightarrow> 'i wordinterval \<Rightarrow> 'i wordinterval \<times> 'i wordinterval" where
+definition range_prefix_match :: "'i::len prefix_match \<Rightarrow> 'i wordinterval \<Rightarrow> 'i wordinterval \<times> 'i wordinterval" where
   "range_prefix_match pfx rg \<equiv> (let pfxrg = prefix_to_wordinterval pfx in 
   (wordinterval_intersection rg pfxrg, wordinterval_setminus rg pfxrg))"
 private lemma range_prefix_match_set_eq:
@@ -300,7 +300,7 @@ text\<open>This split, although rather trivial,
 can be used to construct the sets (or rather: the intervals) 
 of IPs that are actually matched by an entry in a routing table.\<close>
 
-private fun routing_port_ranges :: "'i prefix_routing \<Rightarrow> 'i wordinterval \<Rightarrow> (string \<times> ('i::len) wordinterval) list" where
+fun routing_port_ranges :: "'i prefix_routing \<Rightarrow> 'i wordinterval \<Rightarrow> (string \<times> ('i::len) wordinterval) list" where
 "routing_port_ranges [] lo = []" |
 "routing_port_ranges (a#as) lo = (
 	let rpm = range_prefix_match (routing_match a) lo; m = fst rpm; nm = snd rpm in (

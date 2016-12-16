@@ -1,0 +1,45 @@
+\chapter{Test}
+\label{chap:test}
+
+The following sections contain references of different fonts for text, code, and
+math. 
+
+\section{Listings environment and monospace fonts}
+\lstset{basicstyle=\footnotesize\linespread{.92}\ttfamily,
+	frame=lines,
+	framerule=.5pt,
+	belowcaptionskip=3pt,
+	language=c,
+	keywordstyle=\color{red},
+	commentstyle=\color{blue},
+}
+\begin{lstlisting}[caption={My first listing}]
+int
+main(int argc, char **argv)
+{
+	// Comment
+	fprintf(stdout, "Hello world\n");
+	return 0;
+}
+\end{lstlisting}
+
+
+\section{Standard math alphabet}
+\begin{align}
+	 +\\
+	 -\\
+	 =\\
+	 \geq\\
+	 \leq\\
+	\int_{\infty}^{\infty}\\
+	\left [ \sum_{n=0}^\infty n = \frac{N(N+1)}{2} \right ] \\
+	\left ( \prod_{n=0}^\infty\right )\\
+	\cdot \\
+	\Leftrightarrow\\
+	\leftrightarrow
+\end{align}
+
+
+\showmathalphabet
+
+

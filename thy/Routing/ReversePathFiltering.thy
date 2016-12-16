@@ -28,7 +28,7 @@ definition "rpf_loose rtbl p \<equiv> \<exists>rr \<in> set rtbl. prefix_match_s
 definition "rpf_loose_ign_default rtbl p \<equiv> \<exists>rr \<in> set rtbl. 
   prefix_match_semantics (routing_match rr) (p_src p) \<and> routing_match rr \<noteq> PrefixMatch 0 0"
 text\<open>Note that this clearly exposes a weakness of our models: The FIB we modelled really only considers the routing table. We have not taken care to avoid un-routable address spaces. As such, @{const rpf_loose} is not very useful:\<close>
-lemma "valid_prefixes rtbl \<Longrightarrow> has_default_route rtbl \<Longrightarrow> \<forall>p. rpf_loose rtbl p"
+lemma default_loose_all: "valid_prefixes rtbl \<Longrightarrow> has_default_route rtbl \<Longrightarrow> \<forall>p. rpf_loose rtbl p"
   by(induction rtbl) (auto simp add: valid_prefixes_alt_def zero_prefix_match_all rpf_loose_def[abs_def])
 
 text\<open>One might ask: What (nonstandard) formulations of reverse path filtering are possible? This is an example that fits into the hierarchy, between feasible and strict RPF:\<close>
@@ -43,7 +43,7 @@ text\<open>The insight we are not going to prove here is: There is an infinite n
 lemma "prefix_match_semantics (PrefixMatch 0 0) any" by (simp add: valid_prefix_00 zero_prefix_match_all)
 
 text\<open>The hierarchy unfolds:\<close>
-lemma 
+lemma rpf_strict_semifeasible:
   assumes "valid_prefixes rtbl" "is_longest_prefix_routing rtbl" "unambiguous_routing rtbl"
   shows "rpf_strict rtbl p \<Longrightarrow> rpf_semifeasible rtbl p"
 unfolding rpf_semifeasible_def rpf_strict_def
@@ -60,36 +60,38 @@ proof goal_cases
   from ex show ?case using ** by (simp add: act) blast
 qed
 
-lemma "rpf_semifeasible rtbl p \<Longrightarrow> rpf_feasible rtbl p"
+lemma rpf_semifeasible_feasible: "rpf_semifeasible rtbl p \<Longrightarrow> rpf_feasible rtbl p"
 unfolding rpf_semifeasible_def rpf_feasible_def by blast
-lemma "rpf_feasible rtbl p \<Longrightarrow> rpf_loose rtbl p"
+lemma rpf_feasible_loose: "rpf_feasible rtbl p \<Longrightarrow> rpf_loose rtbl p"
 unfolding rpf_loose_def rpf_feasible_def by blast
-lemma "rpf_loose_ign_default rtbl p \<Longrightarrow> rpf_loose rtbl p"
+lemma rpf_loose_ign_default: "rpf_loose_ign_default rtbl p \<Longrightarrow> rpf_loose rtbl p"
 unfolding rpf_loose_def rpf_loose_ign_default_def by blast
 text\<open>Unfortunately, nothing stronger can be said about @{const rpf_loose_ign_default}:\<close>
 context begin
-private definition "all_valid rtbl \<equiv> valid_prefixes rtbl \<and> is_longest_prefix_routing rtbl \<and> has_default_route rtbl \<and> unambiguous_routing rtbl" 
+definition "all_valid_rtbl rtbl \<equiv> valid_prefixes rtbl \<and> is_longest_prefix_routing rtbl \<and> has_default_route rtbl \<and> unambiguous_routing rtbl" 
 
-lemma "\<exists>rtbl :: 'a :: len prefix_routing. all_valid rtbl \<and> (\<forall>p. \<not>rpf_loose_ign_default rtbl p) \<and> (\<exists>p :: 'a simple_packet. rpf_strict rtbl p)" (is "\<exists>x. ?t1 x") 
+lemma ign_default_mean1: "\<exists>rtbl. all_valid_rtbl rtbl \<and> (\<forall>p. \<not>rpf_loose_ign_default rtbl p) \<and> 
+  (\<exists>p :: ('a :: len,'b) simple_packet_scheme. rpf_strict rtbl p)" (is "\<exists>x. ?t1 x") 
 text\<open>Read: There are routing tables where @{const rpf_loose_ign_default} is strongly stricter than @{const rpf_strict}.\<close>
 proof text\<open>The catch here is that the routing table only containing the default rule will forbid all packets with @{term rpf_loose_ign_default}.\<close>
+  obtain b :: "('a,'b) simple_packet_scheme" where True by simp
   have "rpf_strict [
     \<lparr>routing_match = PrefixMatch 0 0, metric = 418, routing_action = \<lparr>output_iface = ''e'', next_hop = Some 1\<rparr>\<rparr>] 
-    \<lparr> p_iiface = ''e'', p_oiface = '''', p_src = 0, p_dst = 0 :: 'a word, p_proto = TCP, p_sport = 0, p_dport = 0, p_tcp_flags = {}, p_payload = '''' \<rparr>"
-  unfolding rpf_strict_def by(simp add: valid_prefix_00 zero_prefix_match_all)
+    (b\<lparr>p_iiface := ''e''\<rparr>)"
+    unfolding rpf_strict_def by(simp add: valid_prefix_00 zero_prefix_match_all)
   thus "?t1 [\<lparr>routing_match = PrefixMatch 0 0, metric = 418, routing_action = \<lparr>output_iface = ''e'', next_hop = Some 1\<rparr>\<rparr>]"
-  unfolding rpf_loose_ign_default_def unfolding all_valid_def by (auto simp add: valid_prefixes_alt_def valid_prefix_00 is_longest_prefix_routing_def unambiguous_routing_code)  
+    unfolding rpf_loose_ign_default_def unfolding all_valid_rtbl_def by (auto simp add: valid_prefixes_alt_def valid_prefix_00 is_longest_prefix_routing_def unambiguous_routing_code)  
 qed
 
-lemma
-  shows "\<exists>rtbl :: 32 prefix_routing. all_valid rtbl \<and> (\<forall>p. rpf_loose rtbl p \<longleftrightarrow> rpf_loose_ign_default rtbl p)" (is "\<exists>x. _ \<and> (\<forall>p. ?t2 x p)")
+lemma ign_default_mean2:
+  shows "\<exists>rtbl :: 32 prefix_routing. all_valid_rtbl rtbl \<and> (\<forall>p. rpf_loose rtbl p \<longleftrightarrow> rpf_loose_ign_default rtbl p)" (is "\<exists>x. _ \<and> (\<forall>p. ?t2 x p)")
   text\<open>Read: There are routing tables where @{const rpf_loose_ign_default} is just as weak as @{const rpf_loose}. (Even though they contain a default route, mind you!)\<close>
   text\<open>And yes, this could be shown for a more general type, but I suspect that would be a lot more annoying.\<close>
 proof (intro exI allI conjI) text\<open>The catch here is that the functionality of the default route can entirely be taken over by other routes.\<close>
     let ?c = "[\<lparr>routing_match = PrefixMatch 0 1, metric = 0, routing_action = \<lparr>output_iface = ''e'', next_hop = None\<rparr>\<rparr>,
         \<lparr>routing_match = PrefixMatch 2147483648 1, metric = 0, routing_action = \<lparr>output_iface = ''e'', next_hop = None\<rparr>\<rparr>,
         \<lparr>routing_match = PrefixMatch 0 0, metric = 0, routing_action = \<lparr>output_iface = ''e'', next_hop = None\<rparr>\<rparr>] :: 32 prefix_routing"
-    show "all_valid ?c" by eval (* I'd like to make this part of the lemma, but\<dots> Isabelle bug? *)
+    show "all_valid_rtbl ?c" by eval
     have l: "~~ mask 31 && p = 0 \<Longrightarrow> prefix_match_semantics (PrefixMatch 0 1) p" for p :: "32 word" unfolding prefix_match_semantics_def pfxm_prefix_def pfxm_mask_def by simp
     have m: "~~(mask 31 :: 32 word) = 0x80000000" by eval
     have s: "(1 << 31) && p \<noteq> 0 \<Longrightarrow> (1 << 31) && p = 1 << 31" for p :: "32 word"
@@ -398,7 +400,7 @@ fun rpf_wi_lookup where
 theorem
 assumes vpfx: "valid_prefixes rtbl"
 assumes ifsane: "rpf \<in> {RPF_Loose, RPF_LooseIgnDef} \<Longrightarrow> p_iiface p \<in> set ifs"
-shows "rpf_def_lookup rpf rtbl p \<longleftrightarrow> (\<exists>(k,l) \<in> set (rpf_wi_lookup rpf ifs rtbl). p_iiface p = k \<and> p_src p \<in> wordinterval_to_set l)"
+shows rpf_ipassms: "rpf_def_lookup rpf rtbl p \<longleftrightarrow> (\<exists>(k,l) \<in> set (rpf_wi_lookup rpf ifs rtbl). p_iiface p = k \<and> p_src p \<in> wordinterval_to_set l)"
 using assms by(cases rpf; simp_all add: rpf_strict_correct rpf_semifeasible_correct rpf_feasible_correct rpf_loose_correct rpf_loose_ign_default_correct)
 
 end

@@ -1,0 +1,25 @@
+session "IDP_Report" = "LOFT" + 
+	options  [document = pdf, document_output = "output"]
+	theories
+		Intro
+		Chap_Implementation
+		Routing
+		RPF
+		InterfaceRewriting
+		Chap_Evaluation
+		EvalM
+		EvalLOFT
+	document_files
+		root.tex
+		netthesis.cls
+		netcommon.sty
+		netlogos.sty
+		tumcolors.sty
+		moeptikz.sty
+		FontConfiguration.tex
+		MathConfiguration.tex 
+		Packages.tex
+		TextConfiguration.tex
+		TheoremStyles.tex
+		TikzStyles.tex
+		root.bib

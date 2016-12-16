@@ -22,5 +22,6 @@ cabal.sandbox.config
 # generated code
 thy/Examples/generated_code
 
-# generated OpenFlow files…
+# generated doc…
 thy/OpenFlow/output
+thy/IDP_Report/output

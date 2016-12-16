@@ -5,6 +5,7 @@ session Routing = Simple_Firewall +
     "~~/src/HOL/Library/Monad_Syntax"
   theories
     Routing_Table
+    ReversePathFiltering
     Linux_Router
     IpRoute_Parser
     Linorder_Helper
