@@ -661,7 +661,7 @@ theorem to_simple_firewall_without_interfaces:
       --"A passed routing table contains no interfaces with wildcard names"
       and routing_no_wildcards: "\<And>rtbl. rtblo = Some rtbl \<Longrightarrow> routingtbl_sanity_nowildcards rtbl"
 
-  --"the set of new packets, which are accepted is an overapproximations"
+  --"the set of new packets, which are accepted, is an overapproximation"
   shows "{p::('i,'a) tagged_packet_scheme. (common_matcher, in_doubt_allow),p\<turnstile> \<langle>rs, Undecided\<rangle> \<Rightarrow>\<^sub>\<alpha> Decision FinalAllow \<and> newpkt p} \<subseteq>
          {p::('i,'a) tagged_packet_scheme. simple_fw (to_simple_firewall_without_interfaces ipassmt rtblo rs) p = Decision FinalAllow \<and> newpkt p}"
 
