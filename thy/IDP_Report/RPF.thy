@@ -9,21 +9,21 @@ text_raw\<open>\label{sec:rpf}\<close>
 text\<open>Note: This section does not bear any significance for further sections, it is ``merely'' an interesting consideration.\<close>
 text\<open>In Section \ref{sec:routing_ipass}, we introduced the IP assignment as a relation
 that describes which destination IP addresses can be forwarded to which ports.
-Among other things, this section explores IP assignments as the converse:
+Among other things, this section explores IP assignments as the analogue for source/input:
 as a relation that describes which source IP addresses are expected to arrive on which interfaces%
-\footnote{Historically, we actually used IP assignments for this first.
+\footnote{Historically, we used IP assignments for this first.
 The explanation flows smoother in this order.}.
 \<close>
 text\<open>While source address spoofing takes away any possible way to know
 what source addresses can be expected for traffic arriving at interfaces,
 there are techniques to discard traffic with source addresses that can immediately be recognized as spoofed
 (i.e., recognize traffic tolerating false accepts but trying to avoid false rejects).
-These techniques are collected in RFC3704: ``Ingress Filtering for Multihomed Networks''.
-Since they are derived from the homonymous techniques for avoiding loops when forwarding multicast traffic\todo{cite?},
+These techniques are collected in RFC 3704: ``Ingress Filtering for Multihomed Networks''.
+Since they are derived from the homonymous techniques for avoiding loops when forwarding multicast traffic~\cite{rfc1112},
 they are more commonly known as \emph{Reverse Path Forwarding}%
 \footnote{Sometimes erroneously named ``Reverse Path Filtering''.} (RPF).
 The information that is necessary for RPF comes from the Forwarding Information Base (FIB).
-If we reuse the assumptions we made in Section \ref{sec:realrouting},
+If we reuse the assumptions we made in Section \ref{sec:realrouting};
 the only thing that is relevant is thus the routing table.
 We made all definitions of this section based on that assumption.\<close>
 
@@ -51,7 +51,7 @@ text\<open>RFC 3704 defines five ways of implementing RPF:
     \begin{quote}
     ``In the lookup, default routes are excluded.''
     \end{quote}
-    (note that there are some variants defined in the RFC.)
+    (Note that there are some variants of this defined in the RFC. We will use this one.)
 \end{itemize}
 The first item, Ingress Access Lists, just means to specify a list of acceptable source addresses for each interface.
 In other words, it requires the user to statically specify the source IP assignment.
@@ -71,9 +71,9 @@ lemma "rpf_loose_ign_default rtbl p \<equiv> \<exists>rr \<in> set rtbl.
   prefix_match_semantics (routing_match rr) (p_src p) \<and> routing_match rr \<noteq> PrefixMatch 0 0"
   using rpf_loose_ign_default_def .
 
-text\<open>At this point, one might ask whether the above 4 definitions are all sensible ways
-  to derive a decision for the source address from the routing table.
-  As RFC 3704 already answers this question negatively, here is an example of how one might formalize another level.\<close>
+text\<open>RFC 3704 makes clear that the 4 definitions above are all sensible ways
+  to derive a decision for the source address from the routing table,
+  but it does not give an example of a different way. We do that here:\<close>
 lemma "rpf_semifeasible rtbl p \<equiv> \<exists>rr \<in> set rtbl. 
    prefix_match_semantics (routing_match rr) (p_src p) \<and> routing_oiface rr = p_iiface p
 \<and> (\<forall>ra \<in> set rtbl. routing_prefix ra > routing_prefix rr \<longrightarrow>  \<not>prefix_match_semantics (routing_match ra) (p_src p))"
@@ -81,22 +81,26 @@ lemma "rpf_semifeasible rtbl p \<equiv> \<exists>rr \<in> set rtbl.
 text\<open>This definition is in the middle of strict and feasible RPF:
 It allows alternate routes, but only if the alternate routes have the same prefix length.
 (This might be useful when using a routing table that has been obtained from a routing protocol
-before doing link aggregation\todo{what can I cite?}. However, the reason we show it is its apparent similarity to
-@{const longest_prefix_routing}.)
+before doing link aggregation.
+However, the reason we show it is its apparent similarity to @{const longest_prefix_routing} from Section~\ref{sec:routing}.)
 The general answer is (we did not verify this) that there is an infinite amount of possible definitions for RPF based on routing tables
 (and these can actually be put into an infinite hierarchy).
-We will thus not indulge in any further definitions of RPFs and concentrate on the ones we have.
+We will thus not indulge in any further definitions of RPFs and instead concentrate on the ones we have.
 \<close>
 subsection\<open>A hierarchy\<close>
 text\<open>One interesting question is whether those definitions stand in any proper relation to each other.
 This question is positively answered for all but @{const rpf_loose_ign_default} by Figure \ref{fig:rpfhierar}.
 If there is an implication between two of the definitions,
 packets that are accepted by the antecedent are also accepted by the succedent.
-(All implications have been verified, but they are of the form @{thm rpf_feasible_loose[no_vars]} 
+(All implications have been verified, all of them are of the form @{thm rpf_feasible_loose[no_vars]} 
 and we decided not to state them all explicitly.
 The only exception is the implication from @{const rpf_strict} to @{const rpf_semifeasible},
-which also requires three of the routing table validity criteria: @{thm rpf_strict_semifeasible[no_vars]}.
+which also requires routing table validity criteria:
 \<close>
+lemma assumes "valid_prefixes rtbl"
+  "is_longest_prefix_routing rtbl" "unambiguous_routing rtbl"
+  shows "rpf_strict rtbl p \<Longrightarrow> rpf_semifeasible rtbl p"
+  using rpf_strict_semifeasible assms .
 text_raw\<open>
 \begin{figure}
 \centering
@@ -130,16 +134,18 @@ text\<open>Interestingly, it is possible to find routing tables that fulfil all 
 while @{const rpf_strict} still accepts some packets (the trick is to only have default routes).
 On the other hand side, it is also possible to find routing tables
 that make @{const rpf_loose} and @{const rpf_loose_ign_default} behave completely equal
-(the trick is to shadow any default rule completely).\<close>
+(the trick is to shadow any default rule completely):\<close>
 lemma 
   "\<exists>rtbl. all_valid_rtbl rtbl \<and> (\<forall>p. \<not>rpf_loose_ign_default rtbl p) \<and> (\<exists>p. rpf_strict rtbl p)"
-  "\<exists>rtbl :: 32 prefix_routing. all_valid_rtbl rtbl \<and> (\<forall>p. rpf_loose rtbl p \<longleftrightarrow> rpf_loose_ign_default rtbl p)"
+  "\<exists>rtbl :: 32 prefix_routing. all_valid_rtbl rtbl
+    \<and> (\<forall>p. rpf_loose rtbl p \<longleftrightarrow> rpf_loose_ign_default rtbl p)"
   using ign_default_mean1 ign_default_mean2 by blast+
 
 subsection\<open>Obtaining IP assignments\<close>
 text\<open>Having learned all these things, it is time to answer the central question of this section:
 Can appropriate (source) IP assignments be derived from routing tables for all the different RPF types?
-For string RPF, this question is immediately answered by @{const routing_ipassmt_wi} from Section \ref{sec:routing_ipass} – the assignment is fully equal.
+For string RPF, this question is already answered by @{const routing_ipassmt_wi} from Section \ref{sec:routing_ipass} –
+  the assignment is fully equal (as per the last theorem in Section \ref{sec:routing_ipass}).
 For all other types, special definitions are necessary, and the two variants of loose RPF need an additional list of possible source interfaces.
 Since the actual definitions are not very insightful, we have collected them in @{const rpf_wi_lookup} and just show the following:
 \<close>
@@ -174,7 +180,7 @@ is in the \texttt{local} table and will thus not be considered by our model.\<cl
 
 text\<open>In the end, we decided that the theoretical foundation of using RPF
 to obtain source IP assignments from routing tables is still a bit too weak
-to activate it as an available algorithm in an automated checking tool.
+to activate it as an available subsystem in an automated checking tool.
 Instead, we deferred to having the user provide a source IP assignment.
 In a sense, we will be using Ingress Access Lists.
 \<close>
