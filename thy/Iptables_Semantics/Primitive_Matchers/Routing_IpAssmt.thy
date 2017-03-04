@@ -68,16 +68,14 @@ term ipassmt_sanity_nowildcards
 definition "routingtbl_sanity_nowildcards \<equiv> list_all (Not \<circ> iface_is_wildcard \<circ> Iface \<circ> routing_oiface)"
 lemma routingtbl_sanity_nowildcards_alt: "routingtbl_sanity_nowildcards rtbl \<longleftrightarrow> (\<forall>rr \<in> set rtbl. \<not>iface_is_wildcard (Iface (routing_oiface rr)))"
   unfolding routingtbl_sanity_nowildcards_def by(simp add: comp_def list_all_iff)
-lemma routingtbl_sanity_nowildcards: "\<lbrakk>routingtbl_sanity_nowildcards rtbl; ipassmt_sanity_nowildcards (map_of ipassmt)\<rbrakk>
-\<Longrightarrow> ipassmt_sanity_nowildcards (map_of (routing_ipassmt rtbl (map fst ipassmt)))"
+lemma routingtbl_sanity_nowildcards: "\<lbrakk>routingtbl_sanity_nowildcards rtbl; \<forall> iface \<in> set ifs. \<not> iface_is_wildcard iface\<rbrakk>
+\<Longrightarrow> ipassmt_sanity_nowildcards (map_of (routing_ipassmt rtbl ifs))"
   unfolding routingtbl_sanity_nowildcards_alt ipassmt_sanity_nowildcards_def
   unfolding routing_ipassmt_def 
-  apply(clarsimp simp add: comp_def reduce_range_destination_def)
-  apply(drule map_of_SomeD)
-  apply(clarsimp)
-  apply(drule routing_ipassmt_wi_iface_sources)
-  apply(auto simp add: image_iff dom_map_of_conv_image_fst)
-done
+  by(auto 
+      simp add: comp_def reduce_range_destination_def 
+      dest!: map_of_SomeD routing_ipassmt_wi_iface_sources)
+
   
   
 end

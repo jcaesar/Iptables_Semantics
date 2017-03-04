@@ -16,7 +16,7 @@ Unfortunately, firewall configuration is notoriously hard and mistakes are the r
 text\<open>
 One known cause for the many configuration errors in firewall configurations is the complexity of writing firewall rulesets.
 The languages for writing firewall rulesets are often focused on low-level properties of single packets.
-Expressing the high-level human view on traffic into these low-level expressions is error-prone.
+Expressing the high-level human view on traffic in these low-level expressions is error-prone.
 \<close>
 
 text\<open>
@@ -40,7 +40,7 @@ An OpenFlow match expression can, by purpose, not match on the output port, sinc
 To translate a firewall match into an OpenFlow match, it is thus necessary to remove the match for the output port and replace it by something different.
 \<close>
 
-section\<open>This Work\<close>
+section\<open>This Document\<close>
 
 text\<open>
 presents an approach to solve both of these problems:
@@ -53,7 +53,7 @@ The main aspects of this work consider:
 \item under which conditions the rewriting retains the forwarding behavior of the ruleset.
 \end{itemize}
 The beauty of the rewriting approach lies in the fact that it can produce a new ruleset that is functionally equivalent and easier to analyze.
-Thus, using rewriting does not require a single change to our existing frameworks and allows them to obtain more interesting results, or even to obtain results at all.
+Thus, using rewriting does not require a single change to our existing frameworks and allows them to obtain more interesting results, or to obtain results for new classes of input data.
 \<close>
 
 text\<open>
@@ -83,16 +83,24 @@ This work is based on and done in Isabelle/HOL~\cite{isabellehol}, an \emph{LCF\
 Isabelle is a system for implementing formalisms, and Higher Order Logic (HOL), is a system for functional programming and logic.
 Together, they form a generic theorem prover\footnote{Occasionally, the term \emph{Isabelle} is used as \emph{pars pro toto} for \emph{Isabelle/HOL} and adjuncts like \emph{Isabelle/jEdit}}.
 Isabelle/HOL's purpose is not to find entirely new theorems on its own, but to allow to check proofs that have been given by humans with a high reliability.
-This is ensured by the fact that all proofs that are accepted by Isabelle have to pass its inference kernel, a small part of the program that has been developed and analyzed with care by many experts of the formal methods community.
+This is ensured by the fact that all derivations that are accepted by Isabelle have to pass its inference kernel,
+ a small part of the program that has been developed and analyzed with care by many experts of the formal methods community%
+ \footnote{\todo{Makarius said "We need to stop telling these tales."}}.
 In the 20 years of Isabelle's development, of the few unsoundness problems that have been discovered in Isabelle, not a single one was found in production.
 In general, facts that have been proved with Isabelle/HOL can be accepted as well-founded truth.
 \<close>
 
 text\<open>
-This document has been generated using Isabelle/HOL, allowing to directly show the original theorems and lemmas as they are stated and proved.
+This document has been generated using Isabelle/HOL,
+ allowing to directly show the original theorems and lemmas as they are stated and proved,
+ without any possibility for human error by the authors.
 The definitions, lemmas and theorems stated here are merely repetitions of facts state in other theory files.
 This allows us to present the important things in a brief manner while ellipsizing the plethora of necessary auxiliary definitions and helper lemmas.
-Additionally, this form makes it impossible to intentionally hide any assumptions and prevents any involuntary errors when transferring the theorems from Isabelle/HOL to \LaTeX{}.
+Additionally, this form makes it harder to hide any assumptions%
+\footnote{If we wanted to intentionally falsify our results, that would still be possible.
+It is possible, e.g. to make False an axiom~\cite{falso}.
+Thus, Isabelle can strengthen trust in the authors' integrity, but never fully replace it.}
+ and prevents any involuntary errors when transferring the theorems from Isabelle/HOL to \LaTeX{}.
 Unfortunately, the technique also has two downsides:
 The reader is left with some of the idiosyncrasies of Isabelle notation, 
   and it additionally introduces some notational inaccuracies, 
@@ -102,21 +110,31 @@ The reader is left with some of the idiosyncrasies of Isabelle notation,
 text\<open>
 A short overview over the Isabelle/HOL notation follows:
 \begin{itemize}
+  \item Applying a function @{term f} to an argument @{term a} is written as @{term "f a"}.
 	\item Type variables are denoted as @{typ "'a"}.
 	\item Derived types are denoted from right-to-left, e.g. @{typ "nat list"} is a list of natural numbers, @{typ "('a :: len) word"} is a word of length @{typ "'a"}.
 	\item The machine word types are used for IP addresses; @{typ "32 word"} is used for IPv4 addresses, @{typ "128 word"} for IPv6 addresses.
+	  As a convetion, we use the type variable @{typ 'i} for IP address lengths.
 	\item The (product) type of a touple with members @{typ "'a"} and @{typ "'b"} is denoted as @{typ "'a \<times> 'b"}.
 	\item A tuple of @{term a} and @{term b} is denoted as @{term "(a,b)"}
 	\item Lists (e.g. @{term "[a,b,c]"}) are constructed using @{term "op #"} and concatenated using @{term "op @"}, e.g. @{term "s @ a # t"}.
-	\item \todo{}
+	\item There are three different operators for equality:
+	  $=$ for general equality,
+	  $\equiv$ for definitional equality, and
+	  $\longleftrightarrow$ for propositional equality (i.e., $\operatorname{iff}$).
+	  Note that $=$ can semantically be used anywhere the other two can be used,
+	    but it is syntactically a bit different: it binds stronger.
+  \item Assumptions of theorems are put into double brackets and separated with semicolons.
+    Take \emph{Modus Pones} as an example: @{thm mp[no_vars]}. 
+    The operators @{term "op \<longrightarrow>"} and @{term "op \<Longrightarrow>"} both denote implication.
 \end{itemize}
-\<close>
+\<close> (* meh, @{term "op \<longleftrightarrow> :: bool \<Rightarrow> bool \<Rightarrow> bool"} doesn't typeset to \<longleftrightarrow> *)
 
 text\<open>
 Since Isabelle/HOL, just like any other software, receives regular updates and changes over time, it can happen that theory files and proofs that once worked will not do so with future versions of Isabelle/HOL.
-This can be because the names of the lemmas that were used in the proofs change and thus can't be found anymore,
-	because a prover that is being used happens to apply inequalities in a different order and thus produces an unsolvable goal, 
-	or because new definitions were introduced changed the meaning of lemmas.
+The reasons for that are, e.g. that the names of the lemmas that were used in the proofs change and thus can't be found anymore,
+	that a prover that is being used happens to apply inequalities in a different order and thus produces an unsolvable goal, 
+	or that new definitions were introduced changed the meaning of lemmas.
 (This happened in Isabelle 2016-1, where the identifiers @{term pi} and @{term ii} were introduced as real constants. 
 	The lemmas that used the string @{term ii} as a free variable and abbreviation for \emph{input interface} consequently stopped working.)
 To save proofs from this kind of bit-rot, the Isabelle maintainers maintain the \emph{Archive of Formal Proof (AFP)}, a journal of Isabelle proofs, together with Isabelle.

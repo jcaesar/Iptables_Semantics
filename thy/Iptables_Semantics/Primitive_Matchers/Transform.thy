@@ -1724,8 +1724,9 @@ definition iface_try_rewrite
       \<Rightarrow> 'i common_primitive rule list"
 where
   "iface_try_rewrite ipassmt rtblo rs \<equiv> 
-  let o_rewrite = (case rtblo of None \<Rightarrow> id | Some rtbl \<Rightarrow> 
-    transform_optimize_dnf_strict \<circ> optimize_matches (oiface_rewrite (map_of_ipassmt (routing_ipassmt rtbl (map fst ipassmt))))) in
+  let nonwildifaces = filter (Not \<circ> iface_is_wildcard) (collect_ifaces rs);
+    o_rewrite = (case rtblo of None \<Rightarrow> id | Some rtbl \<Rightarrow> 
+    transform_optimize_dnf_strict \<circ> optimize_matches (oiface_rewrite (map_of_ipassmt (routing_ipassmt rtbl nonwildifaces)))) in
   if ipassmt_sanity_disjoint (map_of ipassmt) \<and> ipassmt_sanity_defined rs (map_of ipassmt) then
   optimize_matches (iiface_rewrite (map_of_ipassmt ipassmt)) (o_rewrite rs)
   else
@@ -1853,9 +1854,11 @@ theorem iface_try_rewrite_rtbl:
       and wf_match_tac: "wf_unknown_match_tac \<alpha>"
   shows "(common_matcher, \<alpha>),p\<turnstile> \<langle>iface_try_rewrite ipassmt (Some rtbl) rs, s\<rangle> \<Rightarrow>\<^sub>\<alpha> t \<longleftrightarrow> (common_matcher, \<alpha>),p\<turnstile> \<langle>rs, s\<rangle> \<Rightarrow>\<^sub>\<alpha> t"
 proof -
-  from routingtbl_sanity_nowildcards[OF wf_rtbl wf_ipassmt(1)]  have wf_ipassmt_o: "ipassmt_sanity_nowildcards (map_of (routing_ipassmt rtbl (map fst ipassmt)))" .
+  let ?nwi = "filter (Not \<circ> iface_is_wildcard) (collect_ifaces rs)"
+  from routingtbl_sanity_nowildcards[OF wf_rtbl, of ?nwi]
+  have wf_ipassmt_o: "ipassmt_sanity_nowildcards (map_of (routing_ipassmt rtbl ?nwi))" by simp
   note oiface_rewrite = oiface_rewrite[OF simplers normalized wf_ipassmt_o refl correct_routing routing_decided]
-  let ?ors = "optimize_matches (oiface_rewrite (map_of (routing_ipassmt rtbl (map fst ipassmt)))) rs"
+  let ?ors = "optimize_matches (oiface_rewrite (map_of (routing_ipassmt rtbl (?nwi)))) rs"
   let ?nrs = "transform_optimize_dnf_strict ?ors"
   have osimplers: "simple_ruleset ?ors" using oiface_rewrite(2) .
   have nsimplers: "simple_ruleset ?nrs" using transform_optimize_dnf_strict_structure(1)[OF osimplers wf_match_tac] .
