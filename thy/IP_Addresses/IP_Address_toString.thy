@@ -108,5 +108,4 @@ subsection\<open>IPv6 Pretty Printing\<close>
       ipv6preferred_to_int_int_to_ipv6preferred
       int_to_ipv6preferred_ipv6preferred_to_int
 
-
 end

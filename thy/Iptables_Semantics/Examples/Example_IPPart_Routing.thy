@@ -40,10 +40,10 @@ definition "rtbl2 \<equiv> [
 	rr_ctor (0,0,0,0) 0 ''eth2'' (Some (10,0,2,1)) 0
 ] :: 32 prefix_routing"
 
-definition "MatchAND L \<equiv> foldr (MatchAnd \<circ> Match) L MatchAny"
+definition "MatchAll L \<equiv> foldr (MatchAnd \<circ> Match) L MatchAny"
 definition "fw2 \<equiv> [
 Rule (Match (CT_State {CT_Related,CT_Established})) action.Accept,
-Rule (MatchAND [
+Rule (MatchAll [
   CT_State {CT_New,CT_Established,CT_Related}, 
   IIface (Iface ''eth1''), OIface (Iface ''eth2'')]) action.Accept,
 Rule MatchAny action.Drop

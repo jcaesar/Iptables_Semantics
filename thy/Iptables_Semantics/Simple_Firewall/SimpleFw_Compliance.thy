@@ -242,6 +242,44 @@ definition check_simple_fw_preconditions :: "'i::len common_primitive rule list 
       \<not> has_disc is_Extra m \<and>
       (a = action.Accept \<or> a = action.Drop))"
 
+definition report_simple_fw_preconditions :: "'i::len common_primitive rule list \<Rightarrow> string list" where
+  "report_simple_fw_preconditions rs \<equiv> let ign2 = \<lambda>f g _. f g;
+      conds = [
+      (ign2 (Not \<circ> normalized_src_ports), ''Source ports not normalized''),
+      (ign2 (Not \<circ> normalized_dst_ports), ''Destination ports not normalized''),
+      (ign2 (Not \<circ> normalized_src_ips), ''Source IPs not normalized''),
+      (ign2 (Not \<circ> normalized_dst_ips), ''Destination IPs not normalized''),
+      (ign2 (Not \<circ> normalized_ifaces), ''Interfaces not normalized''),
+      (ign2 (Not \<circ> normalized_protocols), ''Protocols not normalized''),
+      (ign2 (has_disc is_L4_Flags), ''Uses L4 flag match''),
+      (ign2 (has_disc is_CT_State), ''Uses conntrac match''),
+      (ign2 (has_disc is_MultiportPorts), ''Uses multiport match''),
+      (ign2 (has_disc is_Extra), ''Uses extra (unknown) match''),
+      (\<lambda>m a. (a \<noteq> action.Accept \<and> a \<noteq> action.Drop), ''Actions other than Accept and Drop'')]
+     in [i. (c,i) \<leftarrow> conds, (\<exists>r \<in> set rs. (case r of (Rule m a) \<Rightarrow> c m a))]"
+lemma "report_simple_fw_preconditions rs = [] \<longleftrightarrow> check_simple_fw_preconditions rs"
+proof -
+  have *: "concat (map (\<lambda>(c,i). if f c then [i] else []) l) = [] \<longleftrightarrow> list_all (\<lambda>x. \<not> f (fst x)) l"
+    for f g l
+    by(induction l; simp add: list_all_iff split: prod.splits)
+  have **: "((case x of Rule x1 x2 \<Rightarrow> f x1 x2) \<and> (case x of Rule x1 x2 \<Rightarrow> g x1 x2)) \<longleftrightarrow>
+    (case x of Rule x1 x2 \<Rightarrow> (f x1 x2 \<and> g x1 x2))" for f g x  by(cases x; simp)
+  show ?thesis 
+    unfolding report_simple_fw_preconditions_def check_simple_fw_preconditions_def
+    unfolding Let_def comp_def
+    unfolding *
+    unfolding list_all_iff
+    unfolding list.set
+    unfolding Set.ball_simps
+    unfolding fst_conv
+    unfolding Set.bex_simps rule.case_distrib not_not
+    unfolding simp_thms
+    unfolding ball_conj_distrib[symmetric]
+    unfolding **
+    unfolding de_Morgan_conj not_not
+    ..
+qed
+  
 
 (*apart from MatchNot MatchAny, the normalizations imply nnf*)
 lemma "normalized_src_ports m \<Longrightarrow> normalized_nnf_match m"
