@@ -69,7 +69,7 @@ value[code] "let m = access_matrix_pretty_ipv4 parts_connection_http
 
 definition "SQRL_fw_simple \<equiv> remdups_rev (to_simple_firewall (sanitized ipassmt (Some SQRL_rtbl_main)))"
 lemma "simple_fw_valid SQRL_fw_simple" by eval
-lemma "length SQRL_fw_simple = 553" by eval
+lemma "length SQRL_fw_simple = 313" by eval
 value[code] "SQRL_fw_simple"
 lemma "simple_fw_valid SQRL_fw_simple" by eval
 (* fun fact: *)
@@ -94,7 +94,7 @@ definition "SQRL_ports \<equiv> [
 definition "ofi \<equiv> 
     case (lr_of_tran SQRL_rtbl_main SQRL_fw_simple (map fst SQRL_ports))
     of (Inr openflow_rules) \<Rightarrow> map (serialize_of_entry (the \<circ> map_of SQRL_ports)) openflow_rules"
-lemma "length ofi = 606" by eval
+lemma "length ofi = 365" by eval
 value[code] ofi
 
 (* TODO: Well, that's something\<dots> I'd really like to have a proper file with newlines though\<dots> *)

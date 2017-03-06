@@ -17,6 +17,7 @@ session "LOFT" = Iptables_Semantics +
 		LinuxRouter_OpenFlow_Translation
 		"Examples/OF_conv_test/OF_conv_test"
 		"Examples/RFC2544/RFC2544"
+		"Examples/SQRL/SQRL_Router"
 		OpenFlow_Documentation
 
 	document_files

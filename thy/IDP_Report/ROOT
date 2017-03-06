@@ -23,3 +23,7 @@ session "IDP_Report" = "LOFT" +
 		TheoremStyles.tex
 		TikzStyles.tex
 		root.bib
+		"figures/sqrl_rtr_full.tex"
+		"figures/sqrl_rtr_none.tex"
+		"figures/sqrl_rtr_rtbl.tex"
+		"figures/sqrl_rtr_assmt.tex"
