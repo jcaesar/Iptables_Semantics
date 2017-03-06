@@ -10,4 +10,3 @@ default via 42.43.44.1 dev lup proto dhcp src 42.43.44.58 metric 1024
 10.13.44.0/24 via 255.255.255.0 dev vpriv 
 42.43.44.0/24 dev lup proto kernel scope link src 42.43.44.58 
 42.43.44.1 dev lup proto dhcp scope link src 42.43.44.58 metric 1024 
-255.255.255.0 dev vpriv proto kernel scope link src 10.13.37.200 

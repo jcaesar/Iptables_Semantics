@@ -10,19 +10,18 @@ parse_iptables_save SQRL_fw="iptables-save"
 parse_ip_route SQRL_rtbl_main = "ip-route"
 definition "ipassmt \<equiv> let
   a = ipv4addr_of_dotdecimal;
-  i = \<lambda>(b,c,d,e,f). ipcidr_tuple_to_wordinterval (a (b,c,d,e), f);
-  m = \<lambda>(i,b,c,d,e,f::nat). (Iface i, [(a (b,c,d,e), f)])
+  m = \<lambda>(i,b,c,d,e,f). (Iface i, [(a (b,c,d,e), f)])
   in [
   m (''ldit'', 10,13,42,136,29),
   m (''lmd'', 10,13,42,128,29),
   m (''loben'', 10,13,42,144,28),
-  (Iface ''lup'', cidr_split (wordinterval_setminus wordinterval_UNIV
-    (wordinterval_Union [i (192,168,0,0,16), i (10,0,0,0,8), i (127,16,0,0,12)]))),
-  m (''vocb'', 10,13,43,16,28),
- (Iface ''vpriv'', [(a (10,13,44,0),24), (a (10,13,37,0),24)]),
-  m (''vshit'', 10,13,43,0,28),
+  m (''wt'', 10,13,42,160,28),
   m (''wg'', 10,13,41,0,27),
-  m (''wt'', 10,13,42,160,28)
+  (Iface ''lup'', all_but_those_ips [(a (192,168,0,0),16), (a (10,0,0,0),8), (a (127,16,0,0),12)]),
+  (Iface ''vpriv'', [(a (10,13,44,0),24), (a (10,13,37,0),24)]),
+  m (''vshit'', 10,13,43,0,28),
+  m (''vocb'', 10,13,43,16,28),
+  (Iface ''lua'', [])
 ] :: (iface \<times> (32 word \<times> nat) list) list"
 
 term SQRL_fw
@@ -70,7 +69,7 @@ value[code] "let m = access_matrix_pretty_ipv4 parts_connection_http
 
 definition "SQRL_fw_simple \<equiv> remdups_rev (to_simple_firewall (sanitized ipassmt (Some SQRL_rtbl_main)))"
 lemma "simple_fw_valid SQRL_fw_simple" by eval
-lemma "length SQRL_fw_simple = 618" by eval
+lemma "length SQRL_fw_simple = 553" by eval
 value[code] "SQRL_fw_simple"
 lemma "simple_fw_valid SQRL_fw_simple" by eval
 (* fun fact: *)
@@ -106,4 +105,3 @@ value[code] ofi
 \<close>*)
 
 end
-  

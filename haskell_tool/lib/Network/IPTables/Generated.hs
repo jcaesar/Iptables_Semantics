@@ -3789,13 +3789,7 @@ routing_port_ranges ::
   forall a.
     (Len a) => [Routing_rule_ext a ()] ->
                  Wordinterval a -> [([Prelude.Char], Wordinterval a)];
-routing_port_ranges [] lo =
-  (if wordinterval_empty lo then []
-    else [(output_iface
-             ((routing_action ::
-                Routing_rule_ext a () -> Routing_action_ext a ())
-               (error "undefined")),
-            lo)]);
+routing_port_ranges [] lo = [];
 routing_port_ranges (a : asa) lo =
   let {
     rpm = range_prefix_match (routing_match a) lo;
@@ -3826,6 +3820,7 @@ iface_try_rewrite ::
                    [Rule (Common_primitive a)] -> [Rule (Common_primitive a)];
 iface_try_rewrite ipassmt rtblo rs =
   let {
+    nonwildifaces = filter (not . iface_is_wildcard) (collect_ifaces rs);
     o_rewrite =
       (case rtblo of {
         Nothing -> id;
@@ -3833,7 +3828,7 @@ iface_try_rewrite ipassmt rtblo rs =
           transform_optimize_dnf_strict .
             optimize_matches
               (oiface_rewrite
-                (map_of_ipassmt (routing_ipassmt rtbl (map fst ipassmt))));
+                (map_of_ipassmt (routing_ipassmt rtbl nonwildifaces)));
       });
   } in (if let {
              is = image fst (Set ipassmt);
