@@ -6,13 +6,15 @@ matrix:
     - env: CABALVER=1.22 GHCVER=7.8.4
       compiler: "GHC 7.8.4"
       addons: {apt: {packages: [cabal-install-1.22,ghc-7.8.4], sources: [hvr-ghc]}}
-    - env: CABALVER=1.22 GHCVER=7.10.3
+      sudo: required # it's not. But the full VM builds do get more memory. We need that for the theory checking.
+    - env: CABALVER=1.22 GHCVER=7.10.3 SKIP_ISABELLE=1
       compiler: "GHC 7.10.3"
       addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.3], sources: [hvr-ghc]}}
     - env: CABALVER=1.24 GHCVER=8.0.1 BINTRAY_DEPLOY=true
       compiler: "GHC 8.0.1"
       addons: {apt: {packages: [cabal-install-1.24,ghc-8.0.1], sources: [hvr-ghc]}}
-    - env: STACK=1
+      sudo: required
+    - env: STACK=1 SKIP_ISABELLE=1
       compiler: "Stackage LTS"
       addons: {apt: {packages: [libgmp-dev]}}
 
@@ -21,8 +23,14 @@ cache:
     - $HOME/.stack
 
 before_install:
+ - >
+   if [[ -z ${SKIP_ISABELLE-} ]]; then
+       wget https://isabelle.in.tum.de/dist/Isabelle2016-1_app.tar.gz
+       tar xf Isabelle2016-1_app.tar.gz
+   fi
+ - export ISABDIR=$PWD/Isabelle2016-1
  - unset CC
- - export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$HOME/.local/bin:$PATH
+ - export PATH=$ISABDIR/bin:/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$HOME/.local/bin:$PATH
 
 install: ./.travis/install
 script: ./.travis/test

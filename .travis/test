@@ -1,12 +1,34 @@
 #!/usr/bin/env bash
 
-set -e
-set -x
+set -e -u -x
+
+
+# sometimes, you just want the results whether the Haskell build worked, and fast.
+# Therefore, I think it makes sense to disable this in at least one configuration.
+# Building HOL alone takes 9 minutes.
+if [[ -z ${SKIP_ISABELLE-} ]]; then
+	
+	# patch the code generation theory so it will actually generate Haskell files
+	sed -rui 's/checking .* \(\*(.*)\*\)/in Haskell \1/' thy/Iptables_Semantics/Examples/Code_haskell.thy
+
+	CODEGEN_DIR=thy/Iptables_Semantics/Examples/generated_code
+	CODEGEN_FILE=Network/IPTables/Generated.hs
+	mkdir -p "$CODEGEN_DIR"
+
+	(set +x; while sleep 540; do echo 'Do not kill me yet!'; done) &
+	isabelle build -d . -v -o timeout_scale=3 Iptables_Semantics
+	kill %1
+
+	cp "$CODEGEN_DIR/$CODEGEN_FILE" "haskell_tool/lib/$CODEGEN_FILE"
+	# report differences
+	git diff "haskell_tool/lib/$CODEGEN_FILE"
+
+fi
 
 ./check_theorems_doc.sh
 cd haskell_tool
 
-if [ -n "$STACK" ]; then
+if [[ -n "${STACK-}" ]]; then
   stack --no-terminal --skip-ghc-check test
 else
   cabal install --only-dependencies --enable-tests --enable-benchmarks
