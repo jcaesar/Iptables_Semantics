@@ -1,4 +1,16 @@
 #!/usr/bin/python
+#
+# Syntax: ./3chn.py [info] {lr,of} {test,dump,cli} [noarp]
+#
+# /should/ be runnable as a standalone. hm. mn --custom=3chn.py --topo=lr (e.g.) does work.
+#
+# If it complains about not finding a controller:
+# # apt install openvswitch-testcontroller
+# # ln -s /usr/bin/ovs-{test,}controller
+# (at least on ubuntu…)
+#
+# If you want to execute what's done here with self.dpctl in the cli, you do, e.g.:
+# > s1 ovs-ofctl dump-flows 's1'
 
 from mininet.net import Mininet
 from mininet.topo import Topo

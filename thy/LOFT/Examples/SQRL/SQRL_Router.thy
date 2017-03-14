@@ -21,8 +21,12 @@ definition "ipassmt \<equiv> let
   (Iface ''vpriv'', [(a (10,13,44,0),24), (a (10,13,37,0),24)]),
   m (''vshit'', 10,13,43,0,28),
   m (''vocb'', 10,13,43,16,28),
+  m (''zonespanning'', 0,0,0,0,0),
   (Iface ''lua'', [])
 ] :: (iface \<times> (32 word \<times> nat) list) list"
+(* okay, I'm hacking around a bit here. Interface zonespanning obviously doesn't exist,
+   but it will cause the rewriter to think that there are zonespanning interfaces and that it needs
+   to preserve input interfaces. Which I want for a nicer openflow ruleset. *)
 
 term SQRL_fw
 thm SQRL_fw_def
@@ -33,11 +37,11 @@ typ "32 word"
 
 value[code] "map (\<lambda>(c,rs). (c, map (quote_rewrite \<circ> common_primitive_rule_toString) rs)) SQRL_fw"
 definition "unfolded = unfold_ruleset_FORWARD SQRL_fw_FORWARD_default_policy (map_of_string_ipv4 SQRL_fw)"
-definition "sanitized assmt rtblo \<equiv> 
+definition "sanitized assmt rtblo st \<equiv> 
   (upper_closure (optimize_matches abstract_for_simple_firewall (*(abstract_primitive 
     (\<lambda>r. case r of Pos a \<Rightarrow> is_L4_Flags a | Neg a \<Rightarrow> is_L4_Flags a))*)
   (upper_closure (iface_try_rewrite assmt rtblo
-  (upper_closure (packet_assume_new unfolded))))))"
+  (upper_closure (st unfolded))))))"
 
 lemma "length unfolded = 69" by eval
 
@@ -54,8 +58,8 @@ lemma "length (lower_closure unfolded) = 55" by eval
 (* say we'd happen to forget to abstract for simple_fw / remove the l4 matches *)
 value[code] "report_simple_fw_preconditions (upper_closure (packet_assume_new unfolded))"
 
-lemma "check_simple_fw_preconditions (sanitized ipassmt None)" by eval
-lemma "check_simple_fw_preconditions (sanitized ipassmt (Some SQRL_rtbl_main))" by eval
+lemma "check_simple_fw_preconditions (sanitized ipassmt None packet_assume_new)" by eval
+lemma "check_simple_fw_preconditions (sanitized ipassmt (Some SQRL_rtbl_main) packet_assume_new)" by eval
     
 (* quick look at the access matrix (for http): *)
 value[code] "let m = access_matrix_pretty_ipv4 parts_connection_http
@@ -66,14 +70,17 @@ value[code] "let m = access_matrix_pretty_ipv4 parts_connection_http
 (* but that's not what we're here for. *)
 
   
-
-definition "SQRL_fw_simple \<equiv> remdups_rev (to_simple_firewall (sanitized ipassmt (Some SQRL_rtbl_main)))"
-lemma "simple_fw_valid SQRL_fw_simple" by eval
-lemma "length SQRL_fw_simple = 313" by eval
-value[code] "SQRL_fw_simple"
-lemma "simple_fw_valid SQRL_fw_simple" by eval
+definition "packet_assume_established \<equiv> optimize_matches (ctstate_assume_state CT_Established)"
+definition "SQRL_fw_simple_new \<equiv> remdups_rev (to_simple_firewall (sanitized ipassmt (Some SQRL_rtbl_main) packet_assume_new))"
+definition "SQRL_fw_simple_est \<equiv> remdups_rev (to_simple_firewall (sanitized ipassmt (Some SQRL_rtbl_main) packet_assume_established))"
+lemma "simple_fw_valid SQRL_fw_simple_new" by eval
+lemma "simple_fw_valid SQRL_fw_simple_est" by eval    
+lemma "length SQRL_fw_simple_new = 313" by eval
+lemma "length SQRL_fw_simple_est = 362" by eval
+value[code] "SQRL_fw_simple_new"
+value[code] "SQRL_fw_simple_est"
 (* fun fact: *)
-lemma "no_oif_match SQRL_fw_simple" by eval
+lemma "no_oif_match SQRL_fw_simple_new" by eval
 (* I mean, we can abstract over interfaces using
   upper_closure \<circ> optimize_matches (abstract_primitive
   (\<lambda>r. case r of Pos a \<Rightarrow> is_Oiface a | Neg a \<Rightarrow> is_Oiface a))
@@ -91,17 +98,26 @@ definition "SQRL_ports \<equiv> [
   (''wt'', ''9'')
 ]"
 
-definition "ofi \<equiv> 
-    case (lr_of_tran SQRL_rtbl_main SQRL_fw_simple (map fst SQRL_ports))
+definition "ofi fw \<equiv> 
+    case (lr_of_tran SQRL_rtbl_main fw (map fst SQRL_ports))
     of (Inr openflow_rules) \<Rightarrow> map (serialize_of_entry (the \<circ> map_of SQRL_ports)) openflow_rules"
-lemma "length ofi = 365" by eval
+lemma "length (ofi SQRL_fw_simple_new) = 365" by eval
+lemma "length (ofi SQRL_fw_simple_est) = 773" by eval
 value[code] ofi
 
-(* TODO: Well, that's something\<dots> I'd really like to have a proper file with newlines though\<dots> *)
-(*ML\<open>
-	val evterm = the (Code_Evaluation.dynamic_value @{context} @{term "intersperse (Char Nibble0 NibbleA) ofi"});
-	val opstr = Syntax.string_of_term (Config.put show_markup false @{context}) evterm;
-	File.write (Path.explode (File.platform_path(Resources.master_directory @{theory}) ^ "/pretty_str.txt")) opstr;
-\<close>*)
+
+ML\<open>
+let
+fun mgck term file = let
+	val evterm = the (Code_Evaluation.dynamic_value @{context} term);
+	val opstr = map (fn s => HOLogic.dest_string s ^ "\n") (HOLogic.dest_list evterm)
+in
+	File.write_list (Path.explode (File.platform_path(Resources.master_directory @{theory}) ^ "/" ^ file)) opstr
+end
+in
+(mgck @{term "ofi SQRL_fw_simple_new"} "sqrl_of_new.txt", 
+ mgck @{term "ofi SQRL_fw_simple_est"} "sqrl_of_est.txt")
+end
+\<close>
 
 end

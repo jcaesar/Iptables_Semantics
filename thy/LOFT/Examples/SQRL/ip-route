@@ -1,4 +1,4 @@
-default via 42.43.44.1 dev lup proto dhcp src 42.43.44.58 metric 1024 
+default via 14.15.16.1 dev lup proto dhcp src 14.15.16.58 metric 1024 
 10.13.37.0/24 via 255.255.255.0 dev vpriv 
 10.13.41.0/27 dev wg proto kernel scope link src 10.13.41.1 
 10.13.42.128/29 dev lmd proto kernel scope link src 10.13.42.129
@@ -8,5 +8,5 @@ default via 42.43.44.1 dev lup proto dhcp src 42.43.44.58 metric 1024
 10.13.43.0/28 dev vshit proto kernel scope link src 10.13.43.1 
 10.13.43.16/28 dev vocb proto kernel scope link src 10.13.43.17 
 10.13.44.0/24 via 255.255.255.0 dev vpriv 
-42.43.44.0/24 dev lup proto kernel scope link src 42.43.44.58 
-42.43.44.1 dev lup proto dhcp scope link src 42.43.44.58 metric 1024 
+14.15.16.0/24 dev lup proto kernel scope link src 14.15.16.58 
+14.15.16.1 dev lup proto dhcp scope link src 14.15.16.58 metric 1024 
