@@ -5,12 +5,13 @@ from mininet.topo import Topo
 from mininet.link import TCLink
 from mininet.cli import CLI
 from mininet.util import quietRun
-from mininet.log import setLogLevel, info, output, debug, error
+from mininet.log import setLogLevel, info, output, debug, error, lg, LEVELS # I'm not sure I'm using lg and LEVELS right. If they cause trouble, remove them. They're just here for slightly more beautiful output
 from mininet.term import makeTerms
-from mininet.node import Host, OVSBridge, OVSSwitch
+from mininet.node import Host, OVSBridge, OVSSwitch, RemoteController
 from mininet.util import waitListening
+import monotonic # needs python-monotonic
 
-from random import randint
+from random import randint, shuffle
 from sys import exit, stdin, argv
 from re import findall
 from time import sleep
@@ -68,9 +69,10 @@ class StaticSwitch(OVSSwitch,IFCHlp): # Bridge is closest to what we want. It qu
 	def poststart(self):
 		self.ifc()
 		flows = [
-			"'table=0,hard_timeout=0,idle_timeout=0,priority=1,action=drop'",
 			"'table=0,hard_timeout=0,idle_timeout=0,priority=2,arp,action=flood'",
-			"'table=0,hard_timeout=0,idle_timeout=0,priority=2,ip,ct_state=-trk,action=ct(table=1,zone=42)'",
+			"'table=0,hard_timeout=0,idle_timeout=0,priority=2,ipv4,ct_state=-trk,action=ct(table=1,zone=42)'",
+			"'table=0,hard_timeout=0,idle_timeout=0,priority=2,ipv6,action=drop'", # just so you can see what's being dropped, and why.
+			"'table=0,hard_timeout=0,idle_timeout=0,priority=1,action=drop'",
 
 			"'table=1,hard_timeout=0,idle_timeout=0,priority=2,ip,ct_state=+trk+new,action=goto_table:2'",
 			"'table=1,hard_timeout=0,idle_timeout=0,priority=2,ip,ct_state=+trk+est,action=goto_table:3'",
@@ -128,29 +130,45 @@ def dump(ofile, strng):
 		fo.write(strng.replace("\r\n","\n"))
 
 def tcpreachtest(net, client, server, port=80, timeout=2.5):
+	server.cmd("    echo servuer    "); # just to make sure the pipes are clean. I'm not even kidding. :(
+	client.cmd("    echo cliuent    ");
+	sleep(1);
+	ts = monotonic.monotonic()
 	output("TCP {}: {} -> {}: ".format(port, client, server))
+	if lg.isEnabledFor(LEVELS.get('debug')):
+		output("\n")
 	rand = "{}".format(randint(0,18446744073709551615))
-	server.sendCmd("socat EXEC:'echo {}' TCP4-LISTEN:{},reuseaddr".format(rand,port))
-	sleep(.1) # I doubt there is a way of knowing whether it is listening.
-	cliout = client.cmd("socat TCP:{}:{},connect-timeout={} -".format(server.IP(), port, timeout))
+	server.sendCmd("    socat -d -d EXEC:'echo {}' TCP4-LISTEN:{},reuseaddr    ".format(rand,port)) # what are these spaces in front of socat for? well, mininet, the piece of high quality software isn't that precise about its communication with the nodes... occasionally, the first byte gets lost.
+	while monotonic.monotonic() - ts < timeout / 2:
+		data = server.monitor(timeoutms=50)
+		debug("{}\n".format(data.strip()))
+		if 'N listening on' in data:
+			break
+	cliout = client.cmd("    socat TCP:{}:{},connect-timeout={} -    ".format(server.IP(), port, max(timeout - (monotonic.monotonic() - ts), 0.1)))
 	server.sendInt()
 	servout = server.waitOutput()
 	result = cliout.strip() == rand
 	output("{}\n".format("success" if result else "fail"))
-	debug("tcp test: socat server: {}".format(servout.strip()))
-	debug("tcp test: socat client: {}".format(cliout.strip()))
-	debug("tcp test:     expected: {}".format(rand))
+	debug("tcp test: socat server: {}\n".format(servout.strip()))
+	debug("tcp test: socat client: {}\n".format(cliout.strip()))
+	debug("tcp test:     expected: {}\n".format(rand))
+	server.cmd("    echo servuer    ");
+	client.cmd("    echo cliuent    ");
 	return result
 
 def tcpreachtests(net, hosts, ports=[80], timeout=2.5):
 	if type(ports) is not list:
 		ports = [ports]
+	tests = []
 	for port in ports:
 		for h1 in hosts:
 			for h2 in hosts:
 				if h1 == h2:
 					continue
-				tcpreachtest(net, h1, h2, port, timeout)
+				tests.append((net, h1, h2, port, timeout))
+	shuffle(tests)
+	for t in tests:
+		tcpreachtest(*t)
 
 def makearpentries(host, hosts):
 	# add all arp entries for host to hosts.
@@ -173,7 +191,7 @@ def standalone():
 		print("Supply either of (for OpenFlow) or lr (for a Linux Router)")
 		exit(-1)
 	topo = DTopo(scls=scls)
-	net = Mininet(topo=topo,autoSetMacs=True)
+	net = Mininet(topo=topo,autoSetMacs=True) # controller=RemoteController
 	net.start()
 	sw = net.get('s1')
 	trabant = net.get(*['h' + ifce for ifce,_ in IFCHlp.ifcs])
@@ -186,7 +204,7 @@ def standalone():
 			dump('ip-route-dump', sw.cmd('ip route'))
 			dump('collectedmacs-dump', sw.cmd('collectmacs.sh'))
 	if "test" in argv:
-		net.ping(trabant)
+		#net.ping(trabant)
 		tcpreachtests(net,trabant,ports=[80,22])
 		if "of" in argv and "dump" in argv:
 			info(sw.dpctl("dump-flows"));
@@ -194,6 +212,8 @@ def standalone():
 				if "zone=42" in ln:
 					output(ln + '\n')
 	if "cli" in argv:
+		net.tcpreachtest = lambda server, client, port: tcpreachtest(net, client, server, port)
+		net.setLogLevel = lambda ll: setLogLevel(ll) and None
 		CLI(net)
 	net.stop()
 
