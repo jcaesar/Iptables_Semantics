@@ -9,14 +9,15 @@ from mininet.log import setLogLevel, info, output, debug, error, lg, LEVELS # I'
 from mininet.term import makeTerms
 from mininet.node import Host, OVSBridge, OVSSwitch, RemoteController
 from mininet.util import waitListening
-import monotonic # needs python-monotonic
 
+import monotonic # needs python-monotonic
 from random import randint, shuffle
 from sys import exit, stdin, argv
 from re import findall
 from time import sleep
 import os
 import struct, socket
+import signal
 
 ip2int = lambda ipstr: struct.unpack('!I', socket.inet_aton(ipstr))[0]
 int2ip = lambda n: socket.inet_ntoa(struct.pack('!I', n))
@@ -166,9 +167,7 @@ def tcpreachtests(net, hosts, ports=[80], timeout=2.5):
 				if h1 == h2:
 					continue
 				tests.append((net, h1, h2, port, timeout))
-	shuffle(tests)
-	for t in tests:
-		tcpreachtest(*t)
+	return tests
 
 def makearpentries(host, hosts):
 	# add all arp entries for host to hosts.
@@ -178,14 +177,24 @@ def makearpentries(host, hosts):
 				host.cmd("arp -s {} {}".format(intf.IP(), intf.MAC())) # will fail with Netwok unreachable at given times. Easier to ignore than fix.
 
 def standalone():
-	if "debug" in argv:
+	args = {}
+	for a in argv:
+		if ':' in a:
+			k,v = a.split(':',1)
+			args[k] = v
+		else:
+			args[a] = None
+	if "timeout" in args:
+		signal.signal(signal.SIGALRM, lambda _1, _2: (error('timeout\n'), exit(-1)))
+		signal.alarm(int(args["timeout"] or 42))
+	if "debug" in args:
 		setLogLevel( 'debug' )
-	elif "info" in argv:
+	elif "info" in args:
 		setLogLevel( 'info' )
 	scls=None
-	if "of" in argv:
+	if "of" in args:
 		scls = StaticSwitch 
-	elif "lr" in argv:
+	elif "lr" in args:
 		scls = DRtr
 	else:
 		print("Supply either of (for OpenFlow) or lr (for a Linux Router)")
@@ -195,23 +204,37 @@ def standalone():
 	net.start()
 	sw = net.get('s1')
 	trabant = net.get(*['h' + ifce for ifce,_ in IFCHlp.ifcs])
-	if "noarp" not in argv:
+	if "noarp" not in args:
 		makearpentries(sw, trabant)
-	#print(sw.cmd("netstat -tulpen"))
-	if "dump" in argv:
-		if "lr" in argv:
+	if "dump" in args:
+		if "lr" in args:
 			dump('iptables-save-dump', sw.cmd('iptables-save'))
 			dump('ip-route-dump', sw.cmd('ip route'))
 			dump('collectedmacs-dump', sw.cmd('collectmacs.sh'))
-	if "test" in argv:
-		#net.ping(trabant)
-		tcpreachtests(net,trabant,ports=[80,22])
-		if "of" in argv and "dump" in argv:
+	if "test" in args:
+		t = args['test']
+		if t is None:
+			net.ping(trabant)
+			for t in shuffle(tcpreachtests(net,trabant,ports=[80,22])):
+				tcpreachtest(*t)	
+		else:
+			if t == 'ping':
+				net.ping(trabant)
+			else:
+				z,n = [int(a) for a in t.split('/')]
+				tests = tcpreachtests(net,trabant,ports=[80,22])
+				s = int((len(tests)-1)/n+1)
+				b = z*s
+				a = b-s
+				output('tcp test fragment {}-{} / {}\n'.format(a+1,b,len(tests)))
+				for t in tests[a:b]:
+					tcpreachtest(*t)
+		if "of" in args and "dump" in args:
 			info(sw.dpctl("dump-flows"));
 			for ln in sw.cmd("ovs-dpctl", "dump-conntrack").splitlines():
 				if "zone=42" in ln:
 					output(ln + '\n')
-	if "cli" in argv:
+	if "cli" in args:
 		net.tcpreachtest = lambda server, client, port: tcpreachtest(net, client, server, port)
 		net.setLogLevel = lambda ll: setLogLevel(ll) and None
 		CLI(net)
