@@ -1,0 +1,17 @@
+Cheating: we removed
+-A CouldBeSpoofed -s 0.0.0.0/32 -d 255.255.255.255/32 -p udp -m udp --sport 67:68 --dport 67:68 -j RETURN
+from the raw table.
+
+14.15.16.* is a redacted IP address. While we don't consider this cheating,
+the choice is not completely arbitrary: for transforming to openflow, we have
+to move all IPs into the same network. Had we, e.g., chosen 51.52.53.*, the
+network address (lowest address) of the smallest common network would be
+0.0.0.0. This causes mininet not to add the route for that interface for the
+test-clients attached to the openflow switch, presumably a bug in iproute2.
+
+Another note:
+We've deleted a routing rule
+255.255.255.0 dev vpriv proto kernel scope link src 10.13.37.200
+from the live device configuration before dumping since it's not required.
+This rule was automatically added by OpenVPN. It is not clear to us which
+purpose this rule should serve, and it seems to be an artifact.

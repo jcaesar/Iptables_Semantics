@@ -5,6 +5,7 @@ begin
 (*>*)
 
 chapter\<open>Implementation\<close>
+text_raw\<open>\label{chap:implementation}\<close>
 section\<open>Overview\<close>
 text\<open>The sections of this chapter describe the different aspects of the implementation and present the most important theorems on them.\<close>
 
