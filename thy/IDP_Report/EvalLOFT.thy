@@ -57,13 +57,12 @@ text_raw\<open>
 			table=1,priority=1,action=drop
 \end{verbatim}
 \caption{OVS rules for separating packets into tables based on state}
-\todo{OVS abbreviation}
 \label{fig:ovsconntrack}
 \end{figure}
 \<close>
 text\<open>Our solution for this problem is to take a step back:
 In this case, we want to experimentally verify a concrete IPv4 only \todo{mention that upstream} configuration transformation
- using Mininite\todo{cite} and OpenVSwitch\todo{cite}.
+ using Mininite\todo{cite} and OpenVSwitch (OVS) \cite{openvswitch}.
 Instead of clinging to our pure formalization abiding by the OpenFlow\todo{cite} standard,
 we recombine our results freely.
 OpenVSwitch features the capability to hand packets to the Linux \texttt{conntrack} module
@@ -106,9 +105,54 @@ and we tested reachability, again on TCP port 80%
 \footnote{We also tested port 139 and ICMP ping, but the results did not differ},
 for all pairs of hosts%
 \footnote{Reachability to the device itself is not preserved and we did not test it.}.
-The result is shown in Table~\todo{}.
-.
+The result is shown in Table~\ref{tab:sqrlaccmat}.
+The networks (indicated by their interfaces names) are ordered from left to right,
+by descending number of other interfaces they can be accessed from.
+As can be seen, the original configuration and the OVS ruleset from the conversion behave identically
+in all tested cases.
+Great success!
 \<close>
+text_raw\<open>
+\begin{table}
+\begin{minipage}{0.6\textwidth}
+\begin{tabular}{lccccccccc}
+ \hspace{2ex} $\Rsh$ &
+ \rotatebox{90}{\texttt{lup}  } &
+ \rotatebox{90}{\texttt{vshit}} &
+ \rotatebox{90}{\texttt{ldit} } &
+ \rotatebox{90}{\texttt{lmd}  } &
+ \rotatebox{90}{\texttt{loben}} &
+ \rotatebox{90}{\texttt{wt}   } &
+ \rotatebox{90}{\texttt{wg}   } &
+ \rotatebox{90}{\texttt{vocb} } &
+ \rotatebox{90}{\texttt{vpriv}} \\
+\texttt{lup}   &   & ▭ & ▭ & ▭ & ▭ & ▭ & ▭ & ▭ & ▭\\ 
+\texttt{vshit} & ■ &   & ▭ & ▭ & ▭ & ▭ & ▭ & ▭ & ▭\\ 
+\texttt{ldit}  & ■ & ■ &   & ■ & ■ & ■ & ▭ & ▭ & ▭\\ 
+\texttt{lmd}   & ■ & ■ & ■ &   & ■ & ■ & ▭ & ▭ & ▭\\ 
+\texttt{loben} & ■ & ■ & ■ & ■ &   & ■ & ▭ & ▭ & ▭\\ 
+\texttt{wt}    & ■ & ■ & ■ & ■ & ■ &   & ▭ & ▭ & ▭\\ 
+\texttt{wg}    & ■ & ▭ & ▭ & ▭ & ▭ & ▭ &   & ▭ & ▭\\ 
+\texttt{vocb}  & ▭ & ▭ & ▭ & ▭ & ▭ & ▭ & ▭ &   & ▭\\ 
+\texttt{vpriv} & ▭ & ▭ & ▭ & ▭ & ▭ & ▭ & ▭ & ▭ &  \\ 
+\end{tabular}
+\end{minipage}
+\begin{minipage}{0.39\textwidth}
+Legend:\\
+\begin{tabular}{lc}
+no access & ▭ \\
+access only with Linux router & ◩ \\
+access only with OVS & ◪ \\
+access with both & ■
+% makes a lot of sense when opened in isabelle/jedit? well, utf-8, why would you support it.
+% (I mean. srsly.)
+\end{tabular}
+\end{minipage}
+\caption{Access matrix for original and converted configuration}
+\label{tab:sqrlaccmat}
+\end{table}
+\<close>
+  
 
 (*<*)
 end

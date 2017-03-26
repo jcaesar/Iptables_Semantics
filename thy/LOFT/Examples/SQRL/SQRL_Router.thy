@@ -31,7 +31,6 @@ definition "ipassmt \<equiv> let
   (Iface ''vpriv'', [(a (10,13,44,0),24), (a (10,13,37,0),24)]),
   m (''vshit'', 10,13,43,0,28),
   m (''vocb'', 10,13,43,16,28),
-  m (''zonespanning'', 0,0,0,0,0),
   (Iface ''lua'', [])
 ] :: (iface \<times> (32 word \<times> nat) list) list"
 (* okay, I'm hacking around a bit here. Interface zonespanning obviously doesn't exist,
@@ -58,10 +57,15 @@ thm ipassmt_def[unfolded Let_def prod.case]
 
 value[code] "map (\<lambda>(c,rs). (c, map (quote_rewrite \<circ> common_primitive_rule_toString) rs)) SQRL_fw"
 definition "unfolded = unfold_ruleset_FORWARD SQRL_fw_FORWARD_default_policy (map_of_string_ipv4 SQRL_fw)"
+definition "iface_dont_try_rewrite assmt rtblo rs \<equiv> 
+  let nonwildifaces = filter (Not \<circ> iface_is_wildcard) (collect_ifaces rs);
+    o_rewrite = (case rtblo of None \<Rightarrow> id | Some rtbl \<Rightarrow> 
+    transform_optimize_dnf_strict \<circ> optimize_matches (oiface_rewrite (map_of_ipassmt (routing_ipassmt rtbl nonwildifaces)))) in
+  optimize_matches (iiface_constrain (map_of_ipassmt assmt)) (o_rewrite rs)"
 definition "sanitized assmt rtblo st \<equiv> 
   (upper_closure (optimize_matches abstract_for_simple_firewall (*(abstract_primitive 
     (\<lambda>r. case r of Pos a \<Rightarrow> is_L4_Flags a | Neg a \<Rightarrow> is_L4_Flags a))*)
-  (upper_closure (iface_try_rewrite assmt rtblo
+  (upper_closure (iface_dont_try_rewrite assmt rtblo
   (upper_closure (st unfolded))))))"
 
 lemma "length unfolded = 58" by eval
@@ -126,7 +130,7 @@ definition "ofi fw \<equiv>
     of (Inr openflow_rules) \<Rightarrow> map (serialize_of_entry (the \<circ> map_of SQRL_ports)) openflow_rules"
 lemma SQRL_openflow_lengths: "length (ofi SQRL_fw_simple_new) = 384" "length (ofi SQRL_fw_simple_est) = 788" by eval+
 (* value "length (ofi SQRL_fw_simple_new)" value "length (ofi SQRL_fw_simple_est)" *)
-value[code] "(ofi SQRL_fw_simple_new)"
+(*value[code] "(ofi SQRL_fw_simple_new)"*)
 lemma SQRL_fw_simple_new_openflow_14: "take 14 (ofi SQRL_fw_simple_new) = 
  [''priority=383,hard_timeout=0,idle_timeout=0,in_port=2,dl_type=0x800,nw_src=10.13.42.128/29,nw_dst=14.15.16.1/32,action=output:4'',
   ''priority=382,hard_timeout=0,idle_timeout=0,in_port=1,dl_type=0x800,nw_src=10.13.42.136/29,nw_dst=14.15.16.1/32,action=output:4'',

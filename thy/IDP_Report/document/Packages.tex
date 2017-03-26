@@ -3,6 +3,12 @@
 
 % input encoding
 \usepackage[utf8]{inputenc}
+\DeclareUnicodeCharacter{25A0}{$\blacksquare$}
+\DeclareUnicodeCharacter{25A1}{$\square$}
+\DeclareUnicodeCharacter{25AD}{$\square$} % slight unicode misuse here, but Isabelle won't typeset 25A1 properly.
+\DeclareUnicodeCharacter{25E9}{\tikz{\draw (0,0) rectangle (1ex,1ex);\fill (0,0) -- (1ex,1ex) -- (0,1ex);}}
+\DeclareUnicodeCharacter{25EA}{\tikz{\draw (0,0) rectangle (1ex,1ex);\fill (0,0) -- (1ex,1ex) -- (1ex,0);}}
+
 
 % subfiles
 \usepackage{subfiles}

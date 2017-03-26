@@ -6,6 +6,7 @@ session "IDP_Report" = "LOFT" +
 		Routing
 		RPF
 		InterfaceRewriting
+		ChapSema
 		Chap_Evaluation
 		EvalM
 		EvalLOFT

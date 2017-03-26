@@ -184,6 +184,9 @@ def standalone():
 			args[k] = v
 		else:
 			args[a] = None
+	ports = [22,80]
+	if "ports" in args:
+		ports = [int(p) for p in args['ports'].split(',')]
 	if "timeout" in args:
 		signal.signal(signal.SIGALRM, lambda _1, _2: (error('timeout\n'), exit(-1)))
 		signal.alarm(int(args["timeout"] or 42))
@@ -215,14 +218,14 @@ def standalone():
 		t = args['test']
 		if t is None:
 			net.ping(trabant)
-			for t in shuffle(tcpreachtests(net,trabant,ports=[80,22])):
+			for t in shuffle(tcpreachtests(net,trabant,ports=ports)):
 				tcpreachtest(*t)	
 		else:
 			if t == 'ping':
 				net.ping(trabant)
 			else:
 				z,n = [int(a) for a in t.split('/')]
-				tests = tcpreachtests(net,trabant,ports=[80,22])
+				tests = tcpreachtests(net,trabant,ports=ports)
 				s = int((len(tests)-1)/n+1)
 				b = z*s
 				a = b-s

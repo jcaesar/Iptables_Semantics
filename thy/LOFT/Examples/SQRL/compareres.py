@@ -30,6 +30,10 @@ i1, c1 = parse(argv[-2])
 
 ifs = sorted(set(i1).union(set(i2)))
 mal = max([len(ifce) for ifce in ifs])
+ifcop = ifs[:]
+ifs.sort(key = lambda f: sum((f,t) not in c1 or not c1[(f,t)] for t in ifcop))
+ifs.sort(key = lambda t: sum((f,t) not in c1 or not c1[(f,t)] for f in ifcop))
+
 
 for f in ifs:
 	stdout.write(f)
@@ -49,7 +53,7 @@ for f in ifs:
 				if c2[(f,t)]:
 					stdout.write(u'◪')
 				else:
-					stdout.write(' ')
+					stdout.write(u'□')
 		else:
 			stdout.write(' ')
 		stdout.write(u'·')
