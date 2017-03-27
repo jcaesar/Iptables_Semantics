@@ -28,3 +28,6 @@ session "IDP_Report" = "LOFT" +
 		"figures/sqrl_rtr_none.tex"
 		"figures/sqrl_rtr_rtbl.tex"
 		"figures/sqrl_rtr_assmt.tex"
+		"figures/docker_none.tex"
+		"figures/docker_full.tex"
+		"figures/ex2_full.tex"

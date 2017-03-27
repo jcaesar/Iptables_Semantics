@@ -30,9 +30,25 @@
 \usepackage{tabularx}
 \usepackage{longtable}
 \usepackage{ltxtable}
+\usepackage{subcaption}
 
 % lists etc
 \usepackage{cite}
+\usepackage{listing}
+%\lstset{
+%%    language=C++,
+%%    keywordstyle=\color{blue!50!black}\bfseries,
+%%    stringstyle=\color{green!50!black},
+%%    commentstyle=\color{gray}\itshape,
+%%    morekeywords={begin,size_t, uint64_t},
+%    numbers=none,
+%    numberstyle=\tiny\color{gray},
+%    escapeinside={@}{@},
+%    emphstyle=\color{red},
+%    tabsize=2,
+%    breaklines=true,
+%    basicstyle=\ttfamily\small,
+%}
 
 % text configurations not including font
 %\input{TextConfiguration.tex}
@@ -54,6 +70,9 @@
 \usepackage{tikz}
 \input{TikzStyles.tex}
 \usepackage{moeptikz}
+
+\usepackage{bbding}
+\newcommand*\circled[1]{\tikz[baseline=-3pt, scale=0.5, every node/.style={scale=0.5}]{\node[shape=circle,draw,inner sep=1pt,minimum size=16pt] (char) {#1};}}
 
 % IEEE tools for tweaking bib style
 \usepackage{IEEEtrantools}

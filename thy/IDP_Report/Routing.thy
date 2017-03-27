@@ -227,7 +227,7 @@ no packets will ever be routed (forwarded) via that interface\footnote{At least,
 and the result of @{const routing_ipassmt_wi} should contain a pair of port and an empty set.
 Without the list of interfaces, this information could not be represented.%
 \footnote{Surprisingly, introducing the interface did not require a single new case distinction in our proofs.}
-\todo{See sec:evalshorewall for an example where this is important}
+See Section~\ref{sec:evalm} for an example of a configuration where this is important.
 \<close>
 
 text\<open>Furthermore, the definition of @{const routing_ipassmt_wi} validates the following two interesting lemmas:\<close>

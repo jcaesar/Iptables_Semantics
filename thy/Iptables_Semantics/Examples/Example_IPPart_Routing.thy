@@ -29,10 +29,9 @@ lemma "mtx ipassmt_generic_ipv4 None fw1 = [(''{0.0.0.0 .. 255.255.255.255}'', '
 lemma "mtx ipassmt_generic_ipv4 (Some rtbl1) fw1 = []" by eval
 
 (* a maybe slightly more meaningful example: *)
-definition "assmt2 \<equiv> let private = ipv4addr_of_dotdecimal (10,0,1,0);
-  nonprivate = wordinterval_setminus wordinterval_UNIV (ipcidr_tuple_to_wordinterval (private,24)) in [
+definition "assmt2 \<equiv> let private = ipv4addr_of_dotdecimal (10,0,1,0) in [
   (Iface ''eth1'', [(private, 24)]),
-  (Iface ''eth2'', cidr_split nonprivate)
+  (Iface ''eth2'', all_but_those_ips [(private, 24)])
 ]" (* I'll skip lo. *)
 definition "rtbl2 \<equiv> [
 	rr_ctor (10,0,1,0) 24 ''eth1'' None 0,

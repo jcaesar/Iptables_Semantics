@@ -16,8 +16,8 @@ We call this format of a list of pair of match expression and an action of arbit
 generalized (simple) firewall.
 The idea is that, in a Linux style router, these two generalized firewalls are considered sequentially
 for a routing/forwarding decision.
-With that model, we can execute the process shown in Figure~\todo{}:
-If we form the cross product of these two firewalls and conjoin the match expression,
+With that model, we can execute the process shown in Figure~\ref{fig:loft}:
+If we form the cross product of these two firewalls and conjoin the match expression ($\bowtie$),
 we can obtain a single generalized firewalls that computes the same decision in one step.
 This single generalized firewalls can easily be converted to an OpenFlow table, with one catch:
 the match expressions can match on an output port,
@@ -28,6 +28,34 @@ if we have output interface rewriting, we can just remove output interface match
 loosing any information that would be relevant for the forwarding behavior.
 We finally wanted to put this to a test on a real-world configuration.
 For this purpose, we will reuse the configuration from Section~\ref{sec:sqrlfweval}.
+\<close>
+text_raw\<open>
+\tikzset{
+    iop/.style={draw,diamond,aspect=2},
+    tran/.style={draw,rounded corners=2mm},
+    act/.style={draw,circle},
+}
+\begin{figure}
+\centering
+\scalebox{0.666}{
+\begin{tikzpicture}[node distance=2cm]
+    \node [iop] (rt) at (0,0) {\texttt{ip route}};
+    \node [iop] (fw) at (4cm,0) {simple firewall};
+    \node [tran] (grt) at (0,-1.5cm) {$\left[\left(\mathrm{match} \times \mathrm{oiface}\right)\right]$};
+    \draw [->] (rt) -- (grt);
+    \node [act] (j) at (2cm,-2.5cm) {$\bowtie$};
+    \draw [->] (grt) -- (j);
+    \coordinate (gfw) at (4cm,-1.5cm);
+    \draw [->] (fw) -- (gfw) -- (j);
+    \node [tran] (of) at (2cm,-3.6cm) {OpenFlow};
+    \draw [->] (j) -- (of);
+    \node [iop] (ofo) at (2cm,-5.0cm) {single table};
+    \draw [->] (of) -- (ofo);
+\end{tikzpicture}
+}
+\caption{LOFT rewriting: quick overview}
+\label{fig:loft}
+\end{figure}
 \<close>
 text\<open>
 However, there is still one problem: the firewall in question uses stateful matches.
@@ -62,8 +90,8 @@ text_raw\<open>
 \<close>
 text\<open>Our solution for this problem is to take a step back:
 In this case, we want to experimentally verify a concrete IPv4 only \todo{mention that upstream} configuration transformation
- using Mininite\todo{cite} and OpenVSwitch (OVS) \cite{openvswitch}.
-Instead of clinging to our pure formalization abiding by the OpenFlow\todo{cite} standard,
+ using Mininet~\cite{mininet} and OpenVSwitch (OVS) \cite{openvswitch}.
+Instead of clinging to our pure formalization abiding by the OpenFlow~\cite{specification10} standard,
 we recombine our results freely.
 OpenVSwitch features the capability to hand packets to the Linux \texttt{conntrack} module
 and do stateful matches.
@@ -79,9 +107,100 @@ one for new and one for established connections and load these into the appropri
 The only thing that is left to do is to slightly modify the ruleset for the table
 for new connections: if a packet is accepted and forwarded, update the \texttt{conntrack} state,
 i.e. all rules with an action \texttt{output} get an additional action \texttt{ct(commit,zone=42)}.
-An overview over this process is shown in Figure~\todo{}.
+An overview over this process is shown in Figure~\ref{fig:loftext}.
 \<close>
 text_raw\<open>
+\begin{figure}
+\centering
+  \scalebox{0.6}{
+\begin{tikzpicture}[node distance=1cm]
+	\node[iop] (fw) {\texttt{iptables-save}};
+	\node[tran,below of=fw,node distance=1.5cm] (par) {parse};
+	\draw[->] (fw) -- (par);
+	\node[tran,below of=par] (uf) {unfold};
+	\draw[->] (par) -- (uf);
+	\node[act,below of=uf] (uc1) {$\bigsqcap$};
+	\draw[->] (uf) -- (uc1);
+	\node[tran] (new) at (-4cm,-4.5cm){assume new};
+	\draw[->] (uc1) -- (new);
+	\node[act,below of=new] (uc3) {$\bigsqcap$};
+	\draw[->] (new) -- (uc3);
+	\node[tran,below of=uc3] (orw) {$\mathrm{oiface}$ rewrite};
+	\node[tran] (rr) at (-1cm,-5.5cm) {routing relation};
+	\node[iop] (ipr) at (-4cm,0) {\texttt{ip route}};
+	\draw[->] (uc3) -- (orw);
+	\draw[->] (ipr) -- (rr) -- (orw);
+	\node[act,below of=orw] (uc2) {$\bigsqcap$};
+	\draw[->] (orw) -- (uc2);
+	\node[tran,below of=uc2] (irw) {$\mathrm{iiface}$ rewrite};
+	\coordinate[right of=irw] (assmt) at (0,-7cm);
+	\node[iop] (ipa) at (4cm,0) {IP assmt};
+	\draw[->] (uc2) -- (irw);
+	\draw[->] (ipa) -- (assmt) -- (irw);
+	\node[act,below of=irw] (uc4) {$\bigsqcap$};
+	\draw[->] (irw) -- (uc4);
+	\node[tran,below of=uc4] (sfwt) {simple firewall};
+	\draw[->] (uc4) -- (sfwt);
+
+	\node[tran] (new-est) at (4cm,-4.5cm){assume established};
+	\draw[->] (uc1) -- (new-est);
+	\node[act,below of=new-est] (uc3-est) {$\bigsqcap$};
+	\draw[->] (new-est) -- (uc3-est);
+	\node[tran,below of=uc3-est] (orw-est) {$\mathrm{oiface}$ rewrite};
+	\draw[->] (uc3-est) -- (orw-est);
+	\draw[->] (rr) -- (orw-est);
+	\node[act,below of=orw-est] (uc2-est) {$\bigsqcap$};
+	\draw[->] (orw-est) -- (uc2-est);
+	\node[tran,below of=uc2-est] (irw-est) {$\mathrm{iiface}$ rewrite};
+	\draw[->] (uc2-est) -- (irw-est);
+	\draw[->] (assmt) -- (irw-est);
+	\node[act,below of=irw-est] (uc4-est) {$\bigsqcap$};
+	\draw[->] (irw-est) -- (uc4-est);
+	\node[tran,below of=uc4-est] (sfwt-est) {simple firewall};
+	\draw[->] (uc4-est) -- (sfwt-est);
+
+	\node [tran] (grt) at (0,-11.5cm) {$\left[\left(\mathrm{match} \times \mathrm{oiface}\right)\right]$};
+	\coordinate (a) at ($(ipr)!0.22!(grt)$) {};
+	\coordinate (b) at ($(ipr)!0.3!(grt)$) {};
+	\coordinate (c) at ($(ipr)!0.73!(grt)$) {};
+	\coordinate (d) at ($(ipr)!0.78!(grt)$) {};
+	\draw [->] (ipr) -- (a) (d) -- (grt);
+	\draw [dashed] (a) -- (b) (c) -- (d);
+
+\begin{scope}[name=lofte,shift={(0,-10cm)}]
+    \node [act] (j-est) at (2cm,-2.5cm) {$\bowtie$};
+    \draw [->] (grt) -- (j-est);
+	\coordinate (gfw-est) at (4cm,-1.5cm);
+    \draw [->] (sfwt-est) -- (gfw-est) -- (j-est);
+    \node [tran] (of-est) at (2cm,-3.6cm) {OpenFlow};
+    \draw [->] (j-est) -- (of-est);
+\end{scope}
+
+\begin{scope}[name=loftn,shift={(-8cm,-10cm)}]
+    \node [act] (j-new) at (6cm,-2.5cm) {$\bowtie$};
+    \draw [->] (grt) -- (j-new);
+	\coordinate (gfw-new) at (4cm,-1.5cm);
+    \draw [->] (sfwt) -- (gfw-new) -- (j-new);
+    \node [tran] (of-new) at (6cm,-3.6cm) {OpenFlow};
+    \draw [->] (j-new) -- (of-new);
+\end{scope}
+
+	\coordinate [below of=of-new,node distance=0.7cm] (ofnc);
+	\coordinate [below of=of-est,node distance=0.7cm] (ofec);
+	\node[tran] (fin) at (0,-15cm) {OVS magic};
+	\draw[->] (of-new) -- (ofnc) -- (fin);
+	\draw[->] (of-est) -- (ofec) -- (fin);
+
+	\node[iop,below of=fin,node distance=1.8cm] (cfg) {OVS config};
+	\draw[->] (fin) -- (cfg);
+
+
+\end{tikzpicture}
+}
+\caption{Full rewriting process used}
+The nodes labeled $\bigsqcap$ signify use of the @{const upper_closure} function.
+\label{fig:loftext}
+\end{figure}
 \begin{figure}
 \scalebox{0.9}{
 \begin{minipage}{\textwidth}

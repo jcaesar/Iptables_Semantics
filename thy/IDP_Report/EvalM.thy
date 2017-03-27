@@ -1,13 +1,64 @@
 (*<*)
 theory EvalM
-imports Main "../LOFT/Examples/SQRL/SQRL_Router"
+imports Main "../LOFT/Examples/SQRL/SQRL_Router" "../Iptables_Semantics/Examples/Example_IPPart_Routing"
 begin
 (*>*)
 
 section\<open>Re-evaluation of Iptables Service Matrix Generation\<close>
 text_raw\<open>\label{sec:evalm}\<close>
 text\<open>
-\todo{A few toy examples first, then SQRL router. Then maybe one of corny's docker things?}
+We will begin with a few toy examples that demonstrate in what kind of cases interface rewriting
+is useful when generating service matrices. After that, we show two real-world examples
+of improvements of service matrices through interface rewriting.
+\<close>
+text\<open>
+As a first, truly minimal example (that is still within our validity criteria for configurations)
+we will take a device with a single routing rule\footnote{Albeit nonsensical, this rule is actually accepted by the Linux kernel.}:
+\begin{lstlisting}[basicstyle=\ttfamily\small,breaklines=true]
+default dev eth0 scope link
+\end{lstlisting}
+and a single entry in the \texttt{FORWARD} chain (with a \texttt{DROP} default policy)
+\begin{lstlisting}[basicstyle=\ttfamily\small,breaklines=true]
+-A FORWARD -o eth1 -j ACCEPT 
+\end{lstlisting}
+Obviously, we cannot infer anything about the behavior of this firewall if we only examine the iptables configuration.
+Accordingly, if we run the service matrix generation without any additional info,
+it will give us a useless upper bound of a firewall accepting all packets.
+If we additionally consider the routing table, we know that all packets get routed to \texttt{eth0},
+but since the firewall only accepts packets to \texttt{eth1}, all packets get dropped.
+Accordingly, if we pass the routing table to the service matrix generation,
+it will give use an empty result, indicating that all traffic is (guaranteed to be) dropped.
+This minimal example also shows why it is crucial to consider all interfaces when generating the
+routing relation, as explained in Section~\ref{sec:routing_ipass}.
+Had we not added an empty entry for \texttt{eth1}, the result of the interface rewriting would be its input.
+
+While the first example is truly minimal, it is also clearly synthetic.
+A more realistic configuration might have a routing table like this:
+\begin{lstlisting}[basicstyle=\ttfamily\small,breaklines=true]
+default via 10.0.2.1 dev eth2 src 10.0.2.2 metric 202 
+10.0.1.0/24 dev eth1 proto kernel scope link src 10.0.1.1
+10.0.2.0/24 dev eth2 proto kernel scope link src 10.0.2.2 metric 202
+\end{lstlisting}
+and a (default drop) \texttt{FORWARD} chain like
+\begin{lstlisting}[basicstyle=\ttfamily\small,breaklines=true]
+-A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A FORWARD -i eth1 -o eth2 -j ACCEPT
+\end{lstlisting}
+Again, it is clear that we cannot infer anything about the behavior of this configuration
+w.r.t. the IP space with only the information from the \texttt{FORWARD} chain.
+However, for our tools to be able to fully understand this firewall,
+it is necessary to not only provide the routing table, but also an IP assignment for the input interfaces:
+@{thm [display] (rhs) assmt2_def[unfolded Let_def]}
+If we apply rewriting with this IP assignment and the routing table, we obtain
+the result we desired, as shown in Figure~\ref{fig:ex2_full}.
+\<close>
+text_raw\<open>
+\begin{figure}
+\centering
+\input{figures/ex2_full.tex}
+\caption{Second example access matrix with rewriting}
+\label{fig:ex2_full}
+\end{figure}
 \<close>
 subsection\<open>Real World Example 1\<close>
 text_raw\<open>\label{sec:sqrlfweval}\<close>
@@ -125,6 +176,107 @@ text_raw\<open>
 \label{fig:sqrl_rtr_rtbl}
 \end{figure}
 \<close>
+section\<open>Real World Example 2\<close>
+text_raw\<open>\label{sec:evaldocker}\<close>
+text\<open>
+As a second example, we show the evaluation of a configuration for a docker container.
+Compared to the first example, this example is a lot smaller, which has the advantage
+that we can show the configuration dump here for manual inspection of the results.
+While the filtering behavior of this configuration is also not based nearly exclusively on the link layer,
+we still cannot obtain any interesting results since one of the first rules of the firewall
+is to drop \texttt{ACCEPT} all packets from interface \texttt{br-0a5ad9e85c71} that are not sent back
+out on the same interface.
+We show the entire relevant configuration in Figure~\ref{fig:docka}.
+Note that the \texttt{DOCKER} chain is not missing but empty.
+\<close>
+text_raw\<open>
+\begin{figure}
+\begin{subfigure}[b]{\textwidth}
+\begin{lstlisting}[basicstyle=\ttfamily\scriptsize,breaklines=true]
+docker0 = [172.17.0.1/16]
+br-0a5ad9e85c71 = [10.0.0.0/8]
+\end{lstlisting}
+\caption{IP assignment}
+\end{subfigure}
+\begin{subfigure}[b]{\textwidth} 
+\begin{lstlisting}[basicstyle=\ttfamily\scriptsize,breaklines=true]
+default via 10.0.2.2 dev enp0s3  proto static  metric 100 
+10.0.0.0/8 dev br-0a5ad9e85c71  proto kernel  scope link  src 10.42.0.100 
+10.0.2.0/24 dev enp0s3  proto kernel  scope link  src 10.0.2.15  metric 100 
+172.17.0.0/16 dev docker0  proto kernel  scope link  src 172.17.0.1
+\end{lstlisting}
+\caption{\texttt{ip route}}
+\end{subfigure}
+\begin{subfigure}[b]{\textwidth}
+\begin{lstlisting}[basicstyle=\ttfamily\scriptsize,breaklines=true]
+-A FORWARD -j DOCKER-ISOLATION
+-A FORWARD -o br-0a5ad9e85c71 -j DOCKER
+-A FORWARD -o br-0a5ad9e85c71 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A FORWARD -i br-0a5ad9e85c71 ! -o br-0a5ad9e85c71 -j ACCEPT
+-A FORWARD -j DFWFW_FORWARD
+-A FORWARD -o docker0 -j DOCKER
+-A FORWARD -o docker0 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A FORWARD -i docker0 ! -o docker0 -j ACCEPT
+-A FORWARD -i docker0 -o docker0 -j ACCEPT
+-A FORWARD -i br-0a5ad9e85c71 -o br-0a5ad9e85c71 -j DROP
+-A DFWFW_FORWARD -m state --state INVALID -j DROP
+-A DFWFW_FORWARD -m state --state RELATED,ESTABLISHED -j ACCEPT
+-A DFWFW_FORWARD -s 10.0.0.1/32 -d 10.0.0.1/32 -i br-0a5ad9e85c71 -o br-0a5ad9e85c71 -j ACCEPT
+-A DFWFW_FORWARD -s 10.0.0.1/32 -d 10.0.0.2/32 -i br-0a5ad9e85c71 -o br-0a5ad9e85c71 -j ACCEPT
+-A DFWFW_FORWARD -s 10.0.0.1/32 -d 10.0.0.4/32 -i br-0a5ad9e85c71 -o br-0a5ad9e85c71 -j ACCEPT
+-A DFWFW_FORWARD -s 10.0.0.3/32 -d 10.0.0.3/32 -i br-0a5ad9e85c71 -o br-0a5ad9e85c71 -j ACCEPT
+-A DFWFW_FORWARD -s 10.0.0.3/32 -d 10.0.0.2/32 -i br-0a5ad9e85c71 -o br-0a5ad9e85c71 -j ACCEPT
+-A DFWFW_FORWARD -s 10.0.0.3/32 -d 10.0.0.4/32 -i br-0a5ad9e85c71 -o br-0a5ad9e85c71 -j ACCEPT
+-A DFWFW_FORWARD -s 10.0.0.2/32 -d 10.0.0.2/32 -i br-0a5ad9e85c71 -o br-0a5ad9e85c71 -j ACCEPT
+-A DFWFW_FORWARD -s 10.0.0.4/32 -d 10.0.0.1/32 -i br-0a5ad9e85c71 -o br-0a5ad9e85c71 -j ACCEPT
+-A DFWFW_FORWARD -s 10.0.0.4/32 -d 10.0.0.3/32 -i br-0a5ad9e85c71 -o br-0a5ad9e85c71 -j ACCEPT
+-A DFWFW_FORWARD -s 10.0.0.4/32 -d 10.0.0.2/32 -i br-0a5ad9e85c71 -o br-0a5ad9e85c71 -j ACCEPT
+-A DFWFW_FORWARD -s 10.0.0.4/32 -d 10.0.0.4/32 -i br-0a5ad9e85c71 -o br-0a5ad9e85c71 -j ACCEPT
+-A DFWFW_FORWARD -j DROP
+-A DFWFW_INPUT -i br-0a5ad9e85c71 -j DROP
+-A DFWFW_INPUT -i docker0 -j DROP
+-A DOCKER-ISOLATION -i docker0 -o br-0a5ad9e85c71 -j DROP
+-A DOCKER-ISOLATION -i br-0a5ad9e85c71 -o docker0 -j DROP
+-A DOCKER-ISOLATION -j RETURN
+\end{lstlisting}
+\caption{Forwarding-relevant part of \texttt{iptables-save}}
+\end{subfigure}
+\caption{Firewall configuration for docker container}
+\label{fig:docka}
+\end{figure}
+\<close>
+text\<open>
+We show the generated access matrices in Figures~\ref{fig:dockeracc}.
+What follows is an analysis of the configuration assisted by the service matrices,
+but without any detailed knowledge towards the intent of the configuration.
+We can clearly see the fine-grained configuration for four hosts in
+\texttt{10.0.0.0/30} with their access to each other and the Internet.
+The \texttt{10.0.2.0/24} network, accessable from everywhere in \texttt{10.0.0.0/8}, 
+seems to be some kind of transit network.
+We can also see that the rest of the \texttt{10.0.0.0/8} network that is not being used
+shut off and can't be accessed from anywhere,
+probably in case anything new hosts come up but aren't fully configured.
+The \texttt{172.17.0.0/16} network is entirely shut off, the reasons for that are not clear to us.
+\<close>
+text_raw\<open>
+\begin{figure}
+\centering
+\begin{subfigure}[b]{\textwidth}
+\centering
+\input{figures/docker_none.tex}
+\caption{No interface rewriting}
+\end{subfigure}
+\begin{subfigure}[b]{\textwidth}
+\centering
+\input{figures/docker_full.tex}
+\caption{Full interface rewriting}
+\end{subfigure}
+\caption{Access matrix for docker container configuration}
+\label{fig:dockeracc}
+\end{figure}
+\<close>
+text\<open>These examples have clearly demonstrated that interface rewriting can be crucial 
+for interesting analysis results about some firewalls.\<close>
 
 (*<*)
 end
